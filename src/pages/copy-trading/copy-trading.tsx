@@ -1,10 +1,10 @@
-import React, { useCallback,useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Localize } from '@deriv-com/translations';
 import './copy-trading.scss';
 
 // Configuration
-const WS_URL = 'wss://ws.derivws.com/websockets/v3?app_id=1089';
+const WS_URL = 'wss://ws.derivws.com/websockets/v3?app_id=120181';
 const BASE_RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_DELAY = 60000;
 const MIN_DELAY_MS = 600;
@@ -395,8 +395,8 @@ const CopyTrading = observer(() => {
                             {master.status === 'active'
                                 ? 'Connected'
                                 : master.status === 'connecting'
-                                  ? 'Connecting...'
-                                  : 'Not Connected'}
+                                    ? 'Connecting...'
+                                    : 'Not Connected'}
                         </div>
 
                         <div style={{ margin: '12px 0 0', lineHeight: 1.5 }}>
@@ -454,8 +454,8 @@ const CopyTrading = observer(() => {
                             {secondary.status === 'active'
                                 ? 'Connected'
                                 : secondary.status === 'connecting'
-                                  ? 'Connecting...'
-                                  : 'Not Connected'}
+                                    ? 'Connecting...'
+                                    : 'Not Connected'}
                         </div>
 
                         <div style={{ margin: '12px 0 0', lineHeight: 1.5 }}>
