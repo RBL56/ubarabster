@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { observer } from 'mobx-react-lite';
-import { api_base } from '@/external/bot-skeleton/services/api/api-base';
+import { api_base, observer as botObserver } from '@/external/bot-skeleton';
 import { useApiBase } from '@/hooks/useApiBase';
+import { useStore } from '@/hooks/useStore';
 import './speed-bot.scss';
 
 // Transaction Type
@@ -76,6 +77,7 @@ const SpeedBot = observer(() => {
     const activeContractIdRef = useRef<number | null>(null);
     const subscriptionIdRef = useRef<string | null>(null);
     const { connectionStatus } = useApiBase();
+    const { client, run_panel, summary_card, transactions: transactionsStore } = useStore();
 
     // -- Helpers --
     const getSymbol = (vol: string) => {
@@ -300,9 +302,16 @@ const SpeedBot = observer(() => {
                                     lastResultRef.current = status;
                                     activeContractIdRef.current = null;
                                     setIsTrading(false);
+
+                                    // Explicitly request balance update to ensure it reflects in the header
+                                    api_base.api.send({ balance: 1, subscribe: 1 });
                                 }
                             }
                             const profit = poc.profit ? Number(poc.profit).toFixed(2) : '0.00';
+
+                            // Emit bot.contract event to update main app results/transactions
+                            botObserver.emit('bot.contract', poc);
+
                             return { ...tx, status, profit };
                         }
                         return tx;
@@ -420,7 +429,7 @@ const SpeedBot = observer(() => {
             amount: tradeStake,
             basis: 'stake',
             contract_type: contract_type,
-            currency: 'USD',
+            currency: client.currency || 'USD',
             duration: ticks,
             duration_unit: 't',
             symbol: symbol,
@@ -453,6 +462,13 @@ const SpeedBot = observer(() => {
                     setTransactions(prev => [newTx, ...prev]);
                     activeContractIdRef.current = buyRes.buy.contract_id;
 
+                    // Emit events to show in main app Run Panel
+                    botObserver.emit('bot.running');
+                    botObserver.emit('contract.status', {
+                        id: 'contract.purchase_received',
+                        buy: buyRes.buy
+                    });
+
                     // Subscribe to updates for this contract
                     api_base.api.send({ proposal_open_contract: 1, contract_id: buyRes.buy.contract_id, subscribe: 1 });
                     if (!isAutoTrading) showToast('Trade placed successfully!');
@@ -474,6 +490,7 @@ const SpeedBot = observer(() => {
         if (isAutoTrading) {
             setIsAutoTrading(false);
             showToast('Auto Trading Stopped');
+            botObserver.emit('bot.stop');
             return;
         }
 
@@ -487,6 +504,7 @@ const SpeedBot = observer(() => {
 
         setIsAutoTrading(true);
         showToast('Auto Trading Started');
+        botObserver.emit('bot.running');
     };
 
     // -- Auto Engine Hook --
