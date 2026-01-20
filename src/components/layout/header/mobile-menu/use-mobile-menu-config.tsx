@@ -14,6 +14,7 @@ import {
     LegacyChartsIcon,
     LegacyHelpCentreIcon,
     LegacyHomeOldIcon,
+    LegacyLogout1pxIcon,
     LegacyProfileSmIcon,
     LegacyReportsIcon,
     LegacyResponsibleTradingIcon,
@@ -99,17 +100,32 @@ const useMobileMenuConfig = (client?: RootStore['client']) => {
     };
 
     const menuConfig = useMemo(
-        (): TMenuConfig[] => [
-            [
-                {
-                    as: 'button',
-                    label: localize('Dark theme'),
-                    LeftComponent: LegacyTheme1pxIcon,
-                    RightComponent: <ToggleSwitch value={is_dark_mode_on} onChange={toggleTheme} />,
-                },
-            ],
-        ],
-        [is_dark_mode_on, toggleTheme]
+        (): TMenuConfig[] => {
+            const config: TMenuConfig[] = [
+                [
+                    {
+                        as: 'button',
+                        label: localize('Dark theme'),
+                        LeftComponent: LegacyTheme1pxIcon,
+                        RightComponent: <ToggleSwitch value={is_dark_mode_on} onChange={toggleTheme} />,
+                    },
+                ],
+            ];
+
+            if (is_logged_in) {
+                config.push([
+                    {
+                        as: 'button',
+                        label: localize('Log out'),
+                        LeftComponent: LegacyLogout1pxIcon,
+                        onClick: () => client?.logout(),
+                    },
+                ]);
+            }
+
+            return config;
+        },
+        [is_dark_mode_on, toggleTheme, is_logged_in, client, localize]
     );
 
     return {
