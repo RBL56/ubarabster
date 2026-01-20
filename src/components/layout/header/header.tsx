@@ -133,41 +133,45 @@ const AppHeader = observer(() => {
                 <AppLogo />
             </Wrapper>
             <Wrapper variant='right'>
-                {isDesktop && activeLoginid && (
+                {activeLoginid && (
                     <>
-                        {has_wallet ? (
-                            <Button
-                                className='manage-funds-button'
-                                has_effect
-                                text={localize('Manage funds')}
-                                onClick={() => {
-                                    let redirect_url = new URL(standalone_routes.wallets_transfer);
-                                    const is_hub_enabled_country = hubEnabledCountryList.includes(
-                                        client?.residence || ''
-                                    );
-                                    if (is_hub_enabled_country) {
-                                        redirect_url = new URL(standalone_routes.recent_transactions);
-                                    }
-                                    if (is_virtual) {
-                                        redirect_url.searchParams.set('account', 'demo');
-                                    } else if (currency) {
-                                        redirect_url.searchParams.set('account', currency);
-                                    }
-                                    window.location.assign(redirect_url.toString());
-                                }}
-                                primary
-                            />
-                        ) : null}
+                        {isDesktop && (
+                            <>
+                                {has_wallet ? (
+                                    <Button
+                                        className='manage-funds-button'
+                                        has_effect
+                                        text={localize('Manage funds')}
+                                        onClick={() => {
+                                            let redirect_url = new URL(standalone_routes.wallets_transfer);
+                                            const is_hub_enabled_country = hubEnabledCountryList.includes(
+                                                client?.residence || ''
+                                            );
+                                            if (is_hub_enabled_country) {
+                                                redirect_url = new URL(standalone_routes.recent_transactions);
+                                            }
+                                            if (is_virtual) {
+                                                redirect_url.searchParams.set('account', 'demo');
+                                            } else if (currency) {
+                                                redirect_url.searchParams.set('account', currency);
+                                            }
+                                            window.location.assign(redirect_url.toString());
+                                        }}
+                                        primary
+                                    />
+                                ) : null}
 
-                        <Button
-                            tertiary
-                            onClick={() => {
-                                client.logout();
-                            }}
-                            className='logout-button'
-                        >
-                            <Localize i18n_default_text='Log out' />
-                        </Button>
+                                <Button
+                                    tertiary
+                                    onClick={() => {
+                                        client.logout();
+                                    }}
+                                    className='logout-button'
+                                >
+                                    <Localize i18n_default_text='Log out' />
+                                </Button>
+                            </>
+                        )}
                         <AccountSwitcher activeAccount={activeAccount} />
                     </>
                 )}
@@ -211,22 +215,28 @@ const AppHeader = observer(() => {
                             >
                                 <Localize i18n_default_text='Log in' />
                             </Button>
-                            <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
-                                <Localize i18n_default_text='API Token' />
-                            </Button>
-                            <Button
-                                primary
-                                onClick={() => {
-                                    window.open(standalone_routes.signup);
-                                }}
-                            >
-                                <Localize i18n_default_text='Sign up' />
-                            </Button>
+                            {isDesktop && (
+                                <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
+                                    <Localize i18n_default_text='API Token' />
+                                </Button>
+                            )}
+                            {isDesktop && (
+                                <Button
+                                    primary
+                                    onClick={() => {
+                                        window.open(standalone_routes.signup);
+                                    }}
+                                >
+                                    <Localize i18n_default_text='Sign up' />
+                                </Button>
+                            )}
                         </>
                     ) : (
-                        <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
-                            <Localize i18n_default_text='Token Login' />
-                        </Button>
+                        isDesktop && (
+                            <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
+                                <Localize i18n_default_text='Token Login' />
+                            </Button>
+                        )
                     )}
                 </div>
             </Wrapper>

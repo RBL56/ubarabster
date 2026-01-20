@@ -3,9 +3,9 @@ import { isStaging } from '../url/helpers';
 export const APP_IDS = {
     LOCALHOST: 1089,
     TMP_STAGING: 64584,
-    STAGING: 29934,
-    STAGING_BE: 29934,
-    STAGING_ME: 29934,
+    STAGING: 120181,
+    STAGING_BE: 120181,
+    STAGING_ME: 120181,
     PRODUCTION: 120181,
     PRODUCTION_BE: 65556,
     PRODUCTION_ME: 65557,

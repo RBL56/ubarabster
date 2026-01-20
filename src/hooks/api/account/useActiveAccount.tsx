@@ -10,7 +10,9 @@ const useActiveAccount = ({ allBalanceData }: { allBalanceData: Balance | null }
     const { accountList, activeLoginid } = useApiBase();
 
     const activeAccount = useMemo(
-        () => accountList?.find(account => account.loginid === activeLoginid),
+        () =>
+            accountList?.find(account => account.loginid === activeLoginid) ||
+            (activeLoginid ? { loginid: activeLoginid, currency: 'USD', is_virtual: activeLoginid.includes('VRT') } : undefined),
         [activeLoginid, accountList]
     );
 
