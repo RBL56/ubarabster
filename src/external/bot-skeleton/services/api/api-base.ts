@@ -102,6 +102,7 @@ class APIBase {
                 this.api.connection.removeEventListener('close', this.onsocketclose.bind(this));
             }
 
+            this.has_active_symbols = false;
             this.api = generateDerivApiInstance();
             this.api?.connection.addEventListener('open', this.onsocketopen.bind(this));
             this.api?.connection.addEventListener('close', this.onsocketclose.bind(this));
@@ -137,7 +138,7 @@ class APIBase {
             }
         }
 
-        if (!this.has_active_symbols && !V2GetActiveToken()) {
+        if (!this.has_active_symbols) {
             this.active_symbols_promise = this.getActiveSymbols();
         }
 
@@ -302,10 +303,20 @@ class APIBase {
 
             console.log('[APIBase] ✓ Authorization successful!');
 
-            // Force KSH currency as requested
-            if (authorize) {
-                authorize.currency = 'KSH';
+            if (authorize.balance !== undefined) {
+                setAllAccountsBalance({
+                    balance: authorize.balance,
+                    currency: authorize.currency,
+                    loginid: authorize.loginid,
+                    accounts: {
+                        [authorize.loginid]: {
+                            balance: authorize.balance,
+                            currency: authorize.currency,
+                        },
+                    },
+                } as any);
             }
+
 
             // Sync localStorage with authorized details if missing or mismatched
             const currentLoginId = localStorage.getItem('active_loginid');
@@ -318,7 +329,7 @@ class APIBase {
                 // Update client accounts data
                 const clientAccount = {
                     token: this.token,
-                    currency: 'KSH',
+                    currency: authorize.currency,
                     landing_company_name: authorize.landing_company_name,
                     is_virtual: authorize.is_virtual,
                     loginid: authorize.loginid,
@@ -356,7 +367,6 @@ class APIBase {
 
             // Explicitly request balance update
             console.log('[APIBase] Requesting balance update...');
-            this.api?.send({ balance: 1, subscribe: 1, account: 'all' });
         } catch (e: any) {
             console.error('[APIBase] Authorization failed with exception:', e);
             // Only clear and fail if it's NOT a timeout

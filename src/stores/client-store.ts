@@ -33,7 +33,7 @@ export default class ClientStore {
     is_logging_out = false;
 
     // TODO: fix with self exclusion
-    updateSelfExclusion = () => {};
+    updateSelfExclusion = () => { };
 
     private authDataSubscription: { unsubscribe: () => void } | null = null;
     private balanceSubscription: { unsubscribe: () => void } | null = null;
@@ -128,7 +128,7 @@ export default class ClientStore {
             is_current_mf || //is_currently logged in mf account via tradershub
             (financial_shortcode || gaming_shortcode || mt_gaming_shortcode
                 ? (eu_shortcode_regex.test(financial_shortcode) && gaming_shortcode !== 'svg') ||
-                  eu_shortcode_regex.test(gaming_shortcode)
+                eu_shortcode_regex.test(gaming_shortcode)
                 : eu_excluded_regex.test(this.residence))
         );
     }
@@ -332,12 +332,48 @@ export default class ClientStore {
         this.upgradeable_landing_companies = upgradeable_landing_companies;
     };
 
-    setAllAccountsBalance = (all_accounts_balance: Balance | undefined) => {
-        console.log('ClientStore: setAllAccountsBalance', all_accounts_balance);
-        this.all_accounts_balance = all_accounts_balance ?? null;
-        if (all_accounts_balance?.accounts?.[this.loginid]) {
-            this.setBalance(all_accounts_balance.accounts[this.loginid].balance.toString());
-            this.setCurrency(all_accounts_balance.accounts[this.loginid].currency);
+    setAllAccountsBalance = (balance_data: Balance | undefined) => {
+        console.log('ClientStore: setAllAccountsBalance', balance_data);
+
+        if (!balance_data) return;
+
+        // Initialize all_accounts_balance if it's null
+        if (!this.all_accounts_balance) {
+            this.all_accounts_balance = { accounts: {} } as any;
+        }
+
+        if (balance_data.accounts) {
+            // Bulk update from 'account: all'
+            this.all_accounts_balance = {
+                ...this.all_accounts_balance,
+                ...balance_data,
+                accounts: {
+                    ...(this.all_accounts_balance?.accounts || {}),
+                    ...balance_data.accounts
+                }
+            };
+        } else if (balance_data.loginid) {
+            // Single account update (often from ticks or authorize)
+            const updatedAccounts = {
+                ...(this.all_accounts_balance?.accounts || {}),
+                [balance_data.loginid]: {
+                    balance: balance_data.balance,
+                    currency: balance_data.currency
+                }
+            } as any;
+
+            this.all_accounts_balance = {
+                ...this.all_accounts_balance,
+                ...balance_data,
+                accounts: updatedAccounts
+            };
+        }
+
+        // Sync local flat properties for the active account
+        const activeAccountBalance = this.all_accounts_balance?.accounts?.[this.loginid];
+        if (activeAccountBalance) {
+            this.setBalance(activeAccountBalance.balance.toString());
+            this.setCurrency(activeAccountBalance.currency);
         }
     };
 

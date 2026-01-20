@@ -158,18 +158,7 @@ const AppHeader = observer(() => {
                                 primary
                             />
                         ) : null}
-                        <Button
-                            secondary
-                            onClick={() => {
-                                const current = localStorage.getItem('currency_override');
-                                const next = current === 'KSH' ? 'USD' : 'KSH';
-                                localStorage.setItem('currency_override', next);
-                                window.location.reload();
-                            }}
-                            className='currency-toggle-button'
-                        >
-                            {localStorage.getItem('currency_override') === 'KSH' ? 'Switch to USD' : 'Switch to KSH'}
-                        </Button>
+
                         <Button
                             tertiary
                             onClick={() => {
