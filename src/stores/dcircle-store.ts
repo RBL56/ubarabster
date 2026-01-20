@@ -1,0 +1,379 @@
+import { action, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { api_base } from '@/external/bot-skeleton';
+import RootStore from './root-store';
+
+interface TickFeedItem {
+    timestamp: string;
+    price: string;
+    digit: number;
+    isUp: boolean;
+}
+
+export default class DcircleStore {
+    root_store: RootStore;
+    volatility = '1HZ100V'; // Volatility 100 (1s) Index
+    ticksCount = 1000;
+    threshold = 7;
+    currentPrice = '0.00';
+    priceChange = { value: '0.00', percent: '0.00', isUp: true };
+    isLoading = false;
+    digitStats: string[] = Array(10).fill('0.0');
+    overUnder = { under: '0.0', equal: '0.0', over: '0.0' };
+    oddEven = { even: '0.0', odd: '0.0', recent: [] as number[] };
+    currentDigit: number | null = null; // Latest tick's digit
+    recentTicks: TickFeedItem[] = []; // Live tick feed
+    digitCounts: number[] = Array(10).fill(0); // Optimization: Store counts directly
+
+    subscriptionId: string | null = null;
+    digitHistory: number[] = [];
+    lastPrices: number[] = [];
+    messageSubscription: { unsubscribe: () => void } | null = null;
+    isInitialized = false;
+
+    constructor(root_store: RootStore) {
+        makeObservable(this, {
+            volatility: observable,
+            ticksCount: observable,
+            threshold: observable,
+            currentPrice: observable,
+            priceChange: observable,
+            isLoading: observable,
+            digitStats: observable,
+            overUnder: observable,
+            oddEven: observable,
+            currentDigit: observable,
+            recentTicks: observable,
+            isInitialized: observable,
+            setVolatility: action.bound,
+            setTicksCount: action.bound,
+            setThreshold: action.bound,
+            updateAnalysis: action.bound,
+            initialise: action.bound,
+            handleTick: action.bound,
+            cleanup: action.bound,
+        });
+        this.root_store = root_store;
+
+        reaction(
+            () => this.root_store.common.is_socket_opened,
+            is_socket_opened => {
+                if (is_socket_opened) {
+                    if (!this.isInitialized) {
+                        this.initialise();
+                    }
+                } else {
+                    // Socket closed, reset state so we re-init on next open
+                    runInAction(() => {
+                        this.isInitialized = false;
+                        this.isLoading = false;
+                    });
+                }
+            },
+            { fireImmediately: true }
+        );
+
+        // Verification Reaction for "updates in every tick"
+        reaction(
+            () => this.recentTicks.length, // Reacts to tick feed updates
+            length => {
+                if (length > 0) {
+                    // Debug log to verify continuous updates
+                    // console.log(`[Dcircle] Continuous Update Check: Tick processed. Total: ${this.digitHistory.length}`);
+                }
+            }
+        );
+    }
+
+    setVolatility(v: string) {
+        if (this.volatility !== v) {
+            this.volatility = v;
+            this.initialise();
+        }
+    }
+
+    setTicksCount(c: number) {
+        if (this.ticksCount !== c) {
+            this.ticksCount = c;
+            this.updateAnalysis();
+            this.initialise();
+        }
+    }
+
+    setThreshold(t: number) {
+        this.threshold = t;
+        this.updateAnalysis();
+    }
+
+    getPrecision(symbol: string) {
+        const fallback: Record<string, number> = {
+            R_10: 3,
+            R_25: 3,
+            R_50: 4,
+            R_75: 4,
+            R_100: 2,
+            '1HZ10V': 2,
+            '1HZ25V': 2,
+            '1HZ50V': 2,
+            '1HZ75V': 2,
+            '1HZ100V': 2,
+            JD10: 2,
+            JD25: 2,
+            JD50: 2,
+            JD75: 2,
+            JD100: 2,
+        };
+        if ((api_base as any).pip_sizes?.[symbol]) return (api_base as any).pip_sizes[symbol];
+        return fallback[symbol] || 3;
+    }
+
+    processTickData(quote: number, precision: number) {
+        // Robust way to get the last digit
+        const stringVal = quote.toFixed(precision);
+        const lastChar = stringVal.charAt(stringVal.length - 1);
+        return parseInt(lastChar);
+    }
+
+    updateAnalysis() {
+        const total = this.digitHistory.length;
+        if (total === 0) return;
+
+        // Use the persistent digitCounts - extremely fast O(10) instead of O(N)
+        const stats = this.digitCounts.map(count => ((count / total) * 100).toFixed(2));
+
+        // Over/Under/Odd/Even can also be optimized, but let's stick to the critical digitStats first.
+        // For Over/Under we can iterate the counts array (O(10)) instead of history (O(N)).
+        let under = 0,
+            equal = 0,
+            over = 0;
+        let even = 0,
+            odd = 0;
+
+        for (let d = 0; d <= 9; d++) {
+            const count = this.digitCounts[d];
+
+            // Over/Under
+            if (d < this.threshold) under += count;
+            else if (d === this.threshold) equal += count;
+            else over += count;
+
+            // Odd/Even (Note: This is global odd/even for the whole window, not just recent 60)
+            // If we want recent 60 for the grid, we still need to slice history for the grid display.
+            if (d % 2 === 0) even += count;
+            else odd += count;
+        }
+
+        // Recent 60 for visual grid needs actual sequence
+        const recentEO = this.digitHistory.slice(-60);
+
+        runInAction(() => {
+            // Use replace() for proper MobX observable array updates
+            this.digitStats.replace(stats);
+            console.log('[Dcircle] updateAnalysis - total:', total, 'stats:', stats);
+            this.overUnder = {
+                under: ((under / total) * 100).toFixed(2),
+                equal: ((equal / total) * 100).toFixed(2),
+                over: ((over / total) * 100).toFixed(2),
+            };
+            this.oddEven = {
+                even: ((even / total) * 100).toFixed(2),
+                odd: ((odd / total) * 100).toFixed(2),
+                recent: recentEO,
+            };
+        });
+    }
+
+    async initialise() {
+        if (!api_base.api) return;
+
+        this.isLoading = true;
+
+        // Ensure pip_sizes are available for precision
+        if (Object.keys(api_base.pip_sizes).length === 0) {
+            console.log('[Dcircle] Fetching active symbols for precision (non-blocking)...');
+            api_base.getActiveSymbols().catch(e => console.warn('[Dcircle] Active symbols fetch error:', e));
+        }
+
+        console.log(`[Dcircle] Initializing with volatility: ${this.volatility}, ticksCount: ${this.ticksCount}`);
+
+        try {
+            // Cleanup existing subscription
+            if (this.subscriptionId) {
+                api_base.api.send({ forget: this.subscriptionId }).catch(() => {});
+                this.subscriptionId = null;
+            }
+            if (this.messageSubscription) {
+                this.messageSubscription.unsubscribe();
+                this.messageSubscription = null;
+            }
+
+            // Subscribe to message stream BEFORE sending the request to ensure no ticks are missed
+            this.messageSubscription = api_base.api.onMessage().subscribe(this.handleTick);
+            console.log('[Dcircle] Subscribed to global message stream');
+
+            const request = {
+                ticks_history: this.volatility,
+                count: this.ticksCount,
+                end: 'latest',
+                style: 'ticks',
+                subscribe: 1,
+            };
+
+            console.log('[Dcircle] Sending ticks_history request:', request);
+            const res = (await api_base.api.send(request)) as {
+                error?: any;
+                subscription?: { id: string };
+                history?: { prices: number[]; times: number[] };
+            };
+
+            if (res.error) {
+                console.error('[Dcircle] Error from API:', res.error);
+                runInAction(() => {
+                    this.isLoading = false;
+                });
+                return;
+            }
+
+            runInAction(() => {
+                if (res.subscription) {
+                    this.subscriptionId = res.subscription.id;
+                    console.log(`[Dcircle] Ticks history subscription active. ID: ${this.subscriptionId}`);
+                }
+
+                if (res.history && res.history.prices && res.history.prices.length > 0) {
+                    const precision = this.getPrecision(this.volatility);
+
+                    // Reset Rolling Window
+                    this.digitHistory = [];
+                    this.digitCounts = Array(10).fill(0);
+
+                    // Initialize window with history
+                    res.history.prices.forEach((p: number) => {
+                        const d = this.processTickData(p, precision);
+                        this.digitHistory.push(d);
+                        this.digitCounts[d]++;
+                    });
+
+                    // Ensure max size
+                    while (this.digitHistory.length > this.ticksCount) {
+                        const removed = this.digitHistory.shift();
+                        if (removed !== undefined) this.digitCounts[removed]--;
+                    }
+
+                    this.lastPrices = res.history.prices.slice(-20);
+
+                    const lastPrice = res.history.prices[res.history.prices.length - 1];
+                    this.currentPrice = lastPrice.toFixed(precision);
+
+                    // Backfill recentTicks from history (last 30)
+                    const historyLength = res.history.prices.length;
+                    const backfillCount = Math.min(historyLength, 30);
+                    const backfillPrices = res.history.prices.slice(-backfillCount).reverse();
+                    const backfillTimes = res.history.times.slice(-backfillCount).reverse();
+
+                    this.recentTicks = backfillPrices.map((price: number, index: number) => {
+                        const digit = this.processTickData(price, precision);
+                        // Approximate change for history or just mark simple
+                        // Note: history.times gives unix epoch in seconds
+                        const date = new Date(backfillTimes[index] * 1000);
+                        const timestamp = date.toLocaleTimeString('en-US', { hour12: false });
+
+                        // Determine direction (simple check vs next item in reverse list, effectively prev item time-wise)
+                        // Actually backfillPrices is reversed (Latest ... Oldest)
+                        // So next item in array is the 'previous' tick
+                        const prevPrice = backfillPrices[index + 1] !== undefined ? backfillPrices[index + 1] : price;
+                        const isUp = price >= prevPrice;
+
+                        return {
+                            timestamp,
+                            price: price.toFixed(precision),
+                            digit,
+                            isUp,
+                        };
+                    });
+
+                    this.updateAnalysis();
+                    console.log(`[Dcircle] Loaded ${res.history.prices.length} historical ticks`);
+                }
+                this.isLoading = false;
+                this.isInitialized = true;
+            });
+
+            // Ticks are already being handled by the subscription at the start of initialise
+        } catch (err) {
+            console.error('[Dcircle] Initialization error:', err);
+            runInAction(() => {
+                this.isLoading = false;
+            });
+        }
+    }
+
+    handleTick(response: { tick?: { symbol: string; quote: number } }) {
+        const tick = response.tick;
+        if (tick && tick.symbol === this.volatility) {
+            const quote = tick.quote;
+            const precision = this.getPrecision(this.volatility);
+            const digit = this.processTickData(quote, precision);
+
+            // eslint-disable-next-line no-console
+            console.log(`[Dcircle] Real-time Tick: ${quote} -> Digit: ${digit} (Updating percentages...)`);
+
+            // Update Price & Change
+            const prevPrice = this.lastPrices[this.lastPrices.length - 1] || quote;
+            const change = quote - prevPrice;
+            const changePercent = (change / (prevPrice || 1)) * 100;
+            const isUp = change >= 0;
+
+            runInAction(() => {
+                this.currentPrice = quote.toFixed(precision);
+                this.currentDigit = digit; // Highlight current digit
+                this.priceChange = {
+                    value: (change >= 0 ? '+' : '') + change.toFixed(precision),
+                    percent: (change >= 0 ? '+' : '') + changePercent.toFixed(2),
+                    isUp: isUp,
+                };
+
+                this.lastPrices.push(quote);
+                if (this.lastPrices.length > 20) this.lastPrices.shift();
+
+                // --- O(1) Rolling Window Update ---
+                this.digitHistory.push(digit);
+                this.digitCounts[digit]++;
+
+                if (this.digitHistory.length > this.ticksCount) {
+                    const removed = this.digitHistory.shift();
+                    if (removed !== undefined) this.digitCounts[removed]--;
+                }
+
+                // Add to tick feed
+                const now = new Date();
+                const timestamp = now.toLocaleTimeString('en-US', { hour12: false });
+                this.recentTicks.unshift({
+                    timestamp,
+                    price: quote.toFixed(precision),
+                    digit,
+                    isUp,
+                });
+                if (this.recentTicks.length > 30) this.recentTicks.pop();
+
+                this.updateAnalysis();
+                // console.log(`[Dcircle] Updated stats (O(1)). History: ${this.digitHistory.length}`);
+            });
+        }
+    }
+
+    cleanup() {
+        if (this.subscriptionId && api_base.api) {
+            api_base.api.send({ forget: this.subscriptionId }).catch(() => {});
+            this.subscriptionId = null;
+        }
+        if (this.messageSubscription) {
+            this.messageSubscription.unsubscribe();
+            this.messageSubscription = null;
+        }
+        runInAction(() => {
+            this.digitHistory = [];
+            this.lastPrices = [];
+            this.isInitialized = false;
+        });
+    }
+}
