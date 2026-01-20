@@ -215,28 +215,22 @@ const AppHeader = observer(() => {
                             >
                                 <Localize i18n_default_text='Log in' />
                             </Button>
-                            {isDesktop && (
-                                <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
-                                    <Localize i18n_default_text='API Token' />
-                                </Button>
-                            )}
-                            {isDesktop && (
-                                <Button
-                                    primary
-                                    onClick={() => {
-                                        window.open(standalone_routes.signup);
-                                    }}
-                                >
-                                    <Localize i18n_default_text='Sign up' />
-                                </Button>
-                            )}
+                            <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
+                                <Localize i18n_default_text='API Token' />
+                            </Button>
+                            <Button
+                                primary
+                                onClick={() => {
+                                    window.open(standalone_routes.signup);
+                                }}
+                            >
+                                <Localize i18n_default_text='Sign up' />
+                            </Button>
                         </>
                     ) : (
-                        isDesktop && (
-                            <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
-                                <Localize i18n_default_text='Token Login' />
-                            </Button>
-                        )
+                        <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
+                            <Localize i18n_default_text='Token Login' />
+                        </Button>
                     )}
                 </div>
             </Wrapper>
