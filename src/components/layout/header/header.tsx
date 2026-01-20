@@ -227,11 +227,7 @@ const AppHeader = observer(() => {
                                 <Localize i18n_default_text='Sign up' />
                             </Button>
                         </>
-                    ) : (
-                        <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
-                            <Localize i18n_default_text='Token Login' />
-                        </Button>
-                    )}
+                    ) : null}
                 </div>
             </Wrapper>
 
