@@ -1,7 +1,7 @@
 import { isStaging } from '../url/helpers';
 
 export const APP_IDS = {
-    LOCALHOST: 1089,
+    LOCALHOST: 120181,
     TMP_STAGING: 64584,
     STAGING: 120181,
     STAGING_BE: 120181,
@@ -74,7 +74,7 @@ export const getAppId = () => {
         app_id = config_app_id;
     } else if (isLocal() && !config_app_id) {
         // Fallback to the user's preferred app_id for localhost
-        app_id = '1089';
+        app_id = '120181';
     } else if (isStaging()) {
         app_id = APP_IDS.STAGING;
     } else if (isTestLink()) {
