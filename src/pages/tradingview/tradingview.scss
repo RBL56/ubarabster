@@ -1,11 +1,13 @@
+@use 'components/shared/styles/constants' as *;
+@use 'components/shared/styles/mixins' as *;
+
 .tradingview-container {
     display: flex;
     width: 100%;
-    height: calc(100vh - 140px);
-    overflow: hidden;
+    height: var(--tab-content-height);
 
-    @media (max-width: 820px) {
-        height: calc(100vh - 120px);
+    @include mobile-or-tablet-screen {
+        height: var(--tab-content-height-mobile);
     }
 }
 

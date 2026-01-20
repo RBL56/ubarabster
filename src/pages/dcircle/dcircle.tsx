@@ -88,10 +88,13 @@ const Dcircle = observer(() => {
         };
     }, [connectionStatus, initialise, isInitialized]);
 
-    // Calculate most and least frequent digits
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    const circleRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+    const cursorRef = React.useRef<HTMLDivElement>(null);
+
     const digitCounts = dcircle.digitCounts || Array(10).fill(0);
     const maxCount = Math.max(...digitCounts);
-    const minCount = Math.min(...digitCounts.filter(c => c > 0)); // Exclude zeros
+    const minCount = Math.min(...digitCounts.filter(c => (c ?? 0) > 0)); // Exclude zeros
     const hasVariation = maxCount > minCount && minCount > 0;
 
     const getDigitClasses = (d: number) => {
@@ -104,6 +107,26 @@ const Dcircle = observer(() => {
         }
         return classes.join(' ');
     };
+
+    useEffect(() => {
+        // console.log('[Dcircle] Cursor Update Triggered. Current Digit:', currentDigit);
+        if (currentDigit !== null && circleRefs.current[currentDigit] && containerRef.current && cursorRef.current) {
+            const circle = circleRefs.current[currentDigit];
+            const container = containerRef.current;
+            const cursor = cursorRef.current;
+
+            const circleRect = circle!.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            const x = circleRect.left - containerRect.left + circleRect.width / 2;
+            const y = circleRect.top - containerRect.top + circleRect.height / 2;
+
+            cursor.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+            cursor.style.opacity = '1';
+        } else if (cursorRef.current) {
+            cursorRef.current.style.opacity = '0';
+        }
+    }, [currentDigit, recentTicks[0]]); // recentTicks[0] changes on every tick
 
     return (
         <div className='dcircle'>
@@ -147,34 +170,38 @@ const Dcircle = observer(() => {
                     values={{ count: ticksCount }}
                 />
                 {isLoading && <span className='loading'></span>}
+                <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px' }}>
+                    Status: {dcircle.debugStatus} | Symbol: {volatility}
+                </div>
             </div>
 
-            <div className='circles-container'>
+            <div className='circles-container' ref={containerRef}>
+                <div className='digit-cursor' ref={cursorRef}></div>
                 <div className='circles-row'>
                     {[0, 1, 2, 3, 4].map(d => (
                         <div
-                            key={`${d}-${currentDigit === d ? recentTicks.length : 'idle'}`}
+                            key={`${d}`}
+                            ref={el => (circleRefs.current[d] = el)}
                             className={getDigitClasses(d)}
                             onClick={() => setThreshold(d)}
                         >
                             <div className='percentage-bar' style={{ height: `${digitStats[d] ?? '0.0'}%` }}></div>
                             <span>{d}</span>
                             <small>{digitStats[d] ?? '0.0'}%</small>
-                            {currentDigit === d && <div className='current-price-badge'>{digitStats[d] ?? '0.0'}%</div>}
                         </div>
                     ))}
                 </div>
                 <div className='circles-row'>
                     {[5, 6, 7, 8, 9].map(d => (
                         <div
-                            key={`${d}-${currentDigit === d ? recentTicks.length : 'idle'}`}
+                            key={`${d}`}
+                            ref={el => (circleRefs.current[d] = el)}
                             className={getDigitClasses(d)}
                             onClick={() => setThreshold(d)}
                         >
                             <div className='percentage-bar' style={{ height: `${digitStats[d] ?? '0.0'}%` }}></div>
                             <span>{d}</span>
                             <small>{digitStats[d] ?? '0.0'}%</small>
-                            {currentDigit === d && <div className='current-price-badge'>{digitStats[d] ?? '0.0'}%</div>}
                         </div>
                     ))}
                 </div>

@@ -67,6 +67,7 @@ const SpeedBot = observer(() => {
     const [currentStake, setCurrentStake] = useState(0.5);
     const [consecutiveLosses, setConsecutiveLosses] = useState(0);
     const [totalProfit, setTotalProfit] = useState(0);
+    const [debugStatus, setDebugStatus] = useState('Idle');
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -179,6 +180,7 @@ const SpeedBot = observer(() => {
             }
 
             try {
+                setDebugStatus('Initializing...');
                 // Clear state for new symbol
                 setDigits([]);
                 setLdpStats(Array(10).fill(0));
@@ -186,15 +188,16 @@ const SpeedBot = observer(() => {
                 setLastDigit('—');
                 digitHistoryRef.current = [];
 
-                // Subscribe to ticks history with subscribe=1 (Stream)
+                // Get Ticks History
                 const res: any = await api_base.api.send({
                     ticks_history: symbol,
                     adjust_start_time: 1,
                     count: 1000,
                     end: 'latest',
                     style: 'ticks',
-                    subscribe: 1,
                 });
+
+                setDebugStatus('History received');
 
                 if (isMounted && res.history && res.history.prices) {
                     const precision = getPrecision(symbol);
@@ -216,11 +219,22 @@ const SpeedBot = observer(() => {
                     updateLdpStats();
                 }
 
-                if (isMounted && res.subscription) {
-                    activeSubscriptionId = res.subscription.id;
-                    subscriptionIdRef.current = activeSubscriptionId;
+                if (isMounted) {
+                    setDebugStatus('Subscribing to live ticks...');
+                    const subRes: any = await api_base.api.send({
+                        ticks: symbol,
+                        subscribe: 1,
+                    });
+                    if (subRes.subscription) {
+                        activeSubscriptionId = subRes.subscription.id;
+                        subscriptionIdRef.current = activeSubscriptionId;
+                        setDebugStatus('Ready (Live)');
+                    } else if (subRes.error) {
+                        setDebugStatus(`Sub Error: ${subRes.error.message}`);
+                    }
                 }
-            } catch (err) {
+            } catch (err: any) {
+                setDebugStatus(`Error: ${err.message || 'Unknown'}`);
                 console.error('SpeedBot init error:', err);
             }
         };
@@ -228,14 +242,18 @@ const SpeedBot = observer(() => {
         const handleTick = (response: any) => {
             if (!isMounted) return;
 
-            // Capture Subscription ID if not already (sometimes history response doesn't have it immediately or we missed it)
-            if (response.tick && response.tick.symbol === symbol) {
-                if (response.tick.id && !activeSubscriptionId) {
-                    activeSubscriptionId = response.tick.id;
-                    subscriptionIdRef.current = activeSubscriptionId;
-                }
+            const tick = response.tick || response.ohlc;
+            if (!tick) return;
 
-                const quote = response.tick.quote;
+            const incomingSymbol = tick.symbol.toLowerCase().replace('_index', '');
+            const targetSymbol = symbol.toLowerCase().replace('_index', '');
+
+            if (incomingSymbol === targetSymbol) {
+                const quote = tick.quote || tick.close;
+                if (quote === undefined) return;
+
+                setDebugStatus(`Live: ${quote}`);
+
                 const precision = getPrecision(symbol);
                 const { digit, color } = processTick(quote, precision);
 
@@ -578,6 +596,9 @@ const SpeedBot = observer(() => {
                                     {connectionStatus === 'opened' ? 'Live' : 'Offline'}
                                 </span>
                             </div>
+                        </div>
+                        <div style={{ fontSize: '10px', opacity: 0.5, marginBottom: '10px' }}>
+                            Status: {debugStatus}
                         </div>
                         <form onSubmit={e => e.preventDefault()}>
                             <label>

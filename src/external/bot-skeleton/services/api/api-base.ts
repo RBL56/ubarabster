@@ -154,6 +154,12 @@ class APIBase {
         // Global message listener
         this.api?.onMessage().subscribe(this.handleMessage.bind(this));
 
+        // Periodic connection health check (every 30 seconds)
+        if (this.time_interval) clearInterval(this.time_interval);
+        this.time_interval = setInterval(() => {
+            this.reconnectIfNotConnected();
+        }, 30000);
+
         chart_api.init(force_create_connection);
         this.initPythonBridge();
     }
@@ -233,12 +239,29 @@ class APIBase {
     }
 
     reconnectIfNotConnected = () => {
-        // eslint-disable-next-line no-console
-        console.log('connection state: ', this.api?.connection?.readyState);
-        if (this.api?.connection?.readyState && this.api?.connection?.readyState > 1) {
-            // eslint-disable-next-line no-console
-            console.log('Info: Connection to the server was closed, trying to reconnect.');
-            this.init(true);
+        const readyState = this.api?.connection?.readyState;
+        const stateNames = {
+            0: 'CONNECTING',
+            1: 'OPEN',
+            2: 'CLOSING',
+            3: 'CLOSED'
+        };
+
+        console.log('[APIBase] Connection check:', {
+            readyState,
+            stateName: stateNames[readyState as keyof typeof stateNames] || 'UNKNOWN',
+            needsReconnect: readyState !== undefined && readyState > 1
+        });
+
+        if (readyState !== undefined && readyState > 1) {
+            console.log('%c[APIBase] Connection lost - attempting to reconnect...', 'color: #ff9800; font-weight: bold');
+
+            // Add a small delay before reconnecting to avoid rapid reconnection attempts
+            setTimeout(() => {
+                this.init(true);
+            }, 1000);
+        } else if (readyState === 1) {
+            console.log('[APIBase] Connection is healthy (OPEN)');
         }
     };
 

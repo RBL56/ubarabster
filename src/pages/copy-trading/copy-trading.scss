@@ -1,3 +1,6 @@
+@use 'components/shared/styles/constants' as *;
+@use 'components/shared/styles/mixins' as *;
+
 .copy-trading-page {
     --primary: #00d4c4;
     --primary-dark: #00b8a8;
@@ -22,11 +25,19 @@
     flex-grow: 1;
     font-size: 1.6rem;
 
+    @include mobile-or-tablet-screen {
+        height: var(--tab-content-height-mobile);
+    }
+
     .container {
         width: 100%;
         max-width: none; // Ensure no max-width
         margin: 0;
         padding: 40px; // Add internal padding instead
+
+        @include mobile-screen {
+            padding: 1.6rem;
+        }
     }
 
     .header {
@@ -114,6 +125,7 @@
     }
 
     @keyframes pulse {
+
         0%,
         100% {
             opacity: 1;

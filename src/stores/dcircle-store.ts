@@ -23,6 +23,7 @@ export default class DcircleStore {
     currentDigit: number | null = null; // Latest tick's digit
     recentTicks: TickFeedItem[] = []; // Live tick feed
     digitCounts: number[] = Array(10).fill(0); // Optimization: Store counts directly
+    debugStatus = 'Idle';
 
     subscriptionId: string | null = null;
     digitHistory: number[] = [];
@@ -51,6 +52,7 @@ export default class DcircleStore {
             initialise: action.bound,
             handleTick: action.bound,
             cleanup: action.bound,
+            debugStatus: observable,
         });
         this.root_store = root_store;
 
@@ -166,9 +168,8 @@ export default class DcircleStore {
         const recentEO = this.digitHistory.slice(-60);
 
         runInAction(() => {
-            // Use replace() for proper MobX observable array updates
-            this.digitStats.replace(stats);
-            console.log('[Dcircle] updateAnalysis - total:', total, 'stats:', stats);
+            (this.digitStats as any).replace(stats);
+            // console.log('[Dcircle] updateAnalysis - total:', total, 'stats:', stats);
             this.overUnder = {
                 under: ((under / total) * 100).toFixed(2),
                 equal: ((equal / total) * 100).toFixed(2),
@@ -183,9 +184,13 @@ export default class DcircleStore {
     }
 
     async initialise() {
-        if (!api_base.api) return;
+        if (!api_base.api) {
+            this.debugStatus = 'Error: API not ready';
+            return;
+        }
 
         this.isLoading = true;
+        this.debugStatus = 'Initializing...';
 
         // Ensure pip_sizes are available for precision
         if (Object.keys(api_base.pip_sizes).length === 0) {
@@ -198,7 +203,7 @@ export default class DcircleStore {
         try {
             // Cleanup existing subscription
             if (this.subscriptionId) {
-                api_base.api.send({ forget: this.subscriptionId }).catch(() => {});
+                api_base.api.send({ forget: this.subscriptionId }).catch(() => { });
                 this.subscriptionId = null;
             }
             if (this.messageSubscription) {
@@ -208,35 +213,52 @@ export default class DcircleStore {
 
             // Subscribe to message stream BEFORE sending the request to ensure no ticks are missed
             this.messageSubscription = api_base.api.onMessage().subscribe(this.handleTick);
-            console.log('[Dcircle] Subscribed to global message stream');
+            this.debugStatus = 'Subscribed to stream';
+            // console.log('[Dcircle] Subscribed to global message stream');
 
             const request = {
                 ticks_history: this.volatility,
                 count: this.ticksCount,
                 end: 'latest',
                 style: 'ticks',
-                subscribe: 1,
             };
 
-            console.log('[Dcircle] Sending ticks_history request:', request);
             const res = (await api_base.api.send(request)) as {
                 error?: any;
-                subscription?: { id: string };
                 history?: { prices: number[]; times: number[] };
             };
 
             if (res.error) {
-                console.error('[Dcircle] Error from API:', res.error);
                 runInAction(() => {
                     this.isLoading = false;
+                    this.debugStatus = `API Error: ${res.error.message || JSON.stringify(res.error)}`;
                 });
                 return;
             }
+            this.debugStatus = 'History received';
+
+            // Subscribe to live ticks explicitly
+            console.log('[Dcircle] Subscribing to live ticks for symbol:', this.volatility);
+            const subRes = (await api_base.api.send({
+                ticks: this.volatility,
+                subscribe: 1,
+            })) as { subscription?: { id: string }; error?: { message: string }; tick?: any };
+
+            console.log('[Dcircle] Subscription response:', {
+                hasSubscription: !!subRes.subscription,
+                subscriptionId: subRes.subscription?.id,
+                hasError: !!subRes.error,
+                error: subRes.error?.message,
+                hasTick: !!subRes.tick,
+                tickSymbol: subRes.tick?.symbol
+            });
 
             runInAction(() => {
-                if (res.subscription) {
-                    this.subscriptionId = res.subscription.id;
-                    console.log(`[Dcircle] Ticks history subscription active. ID: ${this.subscriptionId}`);
+                if (subRes.subscription) {
+                    this.subscriptionId = subRes.subscription.id;
+                    this.debugStatus = 'Live Stream Connected';
+                } else if (subRes.error) {
+                    this.debugStatus = `Sub Error: ${subRes.error.message}`;
                 }
 
                 if (res.history && res.history.prices && res.history.prices.length > 0) {
@@ -296,6 +318,7 @@ export default class DcircleStore {
                 }
                 this.isLoading = false;
                 this.isInitialized = true;
+                this.debugStatus = 'Ready (Live)';
             });
 
             // Ticks are already being handled by the subscription at the start of initialise
@@ -307,17 +330,61 @@ export default class DcircleStore {
         }
     }
 
-    handleTick(response: { tick?: { symbol: string; quote: number } }) {
-        const tick = response.tick;
-        if (tick && tick.symbol === this.volatility) {
-            const quote = tick.quote;
+    handleTick(response: any) {
+        // Debug: Log ALL incoming messages (first 20 only to avoid spam)
+        if (this.digitHistory.length < 20) {
+            console.log('[Dcircle] Incoming message:', {
+                type: response.msg_type,
+                hasTickData: !!(response.tick || response.ohlc),
+                symbol: response.tick?.symbol || response.ohlc?.symbol || 'N/A',
+                quote: response.tick?.quote || response.ohlc?.close || 'N/A'
+            });
+        }
+
+        const tick = response.tick || response.ohlc;
+        if (!tick) return;
+
+        // Normalize symbols for comparison - remove common suffixes and convert to lowercase
+        const normalizeSymbol = (symbol: string) => {
+            return symbol
+                .toLowerCase()
+                .replace(/_index$/, '')
+                .replace(/index$/, '')
+                .trim();
+        };
+
+        const incomingSymbol = normalizeSymbol(tick.symbol);
+        const currentSymbol = normalizeSymbol(this.volatility);
+
+        // Debug: Log symbol comparison
+        if (this.digitHistory.length < 5) {
+            console.log('[Dcircle] Symbol Match Check:', {
+                incoming: tick.symbol,
+                normalized_incoming: incomingSymbol,
+                current: this.volatility,
+                normalized_current: currentSymbol,
+                match: incomingSymbol === currentSymbol
+            });
+        }
+
+        if (incomingSymbol === currentSymbol) {
+            const quote = tick.quote || tick.close;
+            if (quote === undefined) {
+                console.warn('[Dcircle] Tick matched but no quote/close value:', tick);
+                return;
+            }
+
             const precision = this.getPrecision(this.volatility);
             const digit = this.processTickData(quote, precision);
 
-            // eslint-disable-next-line no-console
-            console.log(`[Dcircle] Real-time Tick: ${quote} -> Digit: ${digit} (Updating percentages...)`);
+            // Update status
+            this.debugStatus = `Live: ${quote} (${digit})`;
 
-            // Update Price & Change
+            // Debug: Confirm tick processing
+            if (this.digitHistory.length < 10) {
+                console.log('[Dcircle] Processing tick:', { quote, digit, precision });
+            }
+
             const prevPrice = this.lastPrices[this.lastPrices.length - 1] || quote;
             const change = quote - prevPrice;
             const changePercent = (change / (prevPrice || 1)) * 100;
@@ -356,14 +423,23 @@ export default class DcircleStore {
                 if (this.recentTicks.length > 30) this.recentTicks.pop();
 
                 this.updateAnalysis();
-                // console.log(`[Dcircle] Updated stats (O(1)). History: ${this.digitHistory.length}`);
             });
+        } else {
+            // Debug: Log non-matching symbols
+            if (tick.symbol && this.digitHistory.length < 10) {
+                console.log('[Dcircle] Symbol mismatch - ignoring tick:', {
+                    incoming: tick.symbol,
+                    expected: this.volatility,
+                    normalized_incoming: incomingSymbol,
+                    normalized_expected: currentSymbol
+                });
+            }
         }
     }
 
     cleanup() {
         if (this.subscriptionId && api_base.api) {
-            api_base.api.send({ forget: this.subscriptionId }).catch(() => {});
+            api_base.api.send({ forget: this.subscriptionId }).catch(() => { });
             this.subscriptionId = null;
         }
         if (this.messageSubscription) {

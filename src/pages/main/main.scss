@@ -2,6 +2,7 @@
 @use 'components/shared/styles/mixins' as *;
 
 .run-panel {
+
     // fix for the RTL issue on tab active line
     .dc-tabs__active-line {
         right: auto;
@@ -35,7 +36,7 @@
     padding: 1.6rem;
 
     @include mobile-or-tablet-screen {
-        height: calc(100vh - 6rem);
+        height: calc(100vh - 4.4rem);
         padding: 0;
     }
 
@@ -51,6 +52,7 @@
         }
 
         &--active {
+
             // css for onboard tour overlay
             &:before {
                 content: '';
@@ -107,7 +109,7 @@
 
                 &--border-bottom {
                     @include mobile-or-tablet-screen {
-                        border-bottom: 0;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
                     }
                 }
             }
@@ -176,13 +178,16 @@
                     margin-inline-end: 0.8rem;
 
                     @include mobile-or-tablet-screen {
-                        margin-inline-end: 0.4rem;
+                        padding: 0 1rem;
+                        height: 4rem;
+                        min-width: fit-content;
                     }
                 }
 
                 &__icon {
                     @include mobile-or-tablet-screen {
-                        padding-top: 0.5rem;
+                        padding-top: 0;
+                        margin-bottom: 0;
                     }
                 }
             }
@@ -731,6 +736,7 @@
 }
 
 @keyframes blink {
+
     0%,
     100% {
         border: 1px solid $color-red;

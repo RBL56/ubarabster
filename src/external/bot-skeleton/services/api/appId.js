@@ -4,15 +4,103 @@ import DerivAPIBasic from '@deriv/deriv-api/dist/DerivAPIBasic';
 import { getInitialLanguage } from '@deriv-com/translations';
 import APIMiddleware from './api-middleware';
 
+// Fallback servers in order of preference
+const FALLBACK_SERVERS = [
+    'ws.derivws.com',
+    'green.derivws.com',
+    'blue.derivws.com',
+    'red.derivws.com',
+    'frontend.derivws.com'
+];
+
+let currentServerIndex = 0;
+let connectionAttempts = 0;
+
 export const generateDerivApiInstance = () => {
-    const cleanedServer = getSocketURL().replace(/[^a-zA-Z0-9.]/g, '');
+    const configServer = getSocketURL();
     const cleanedAppId = getAppId()?.replace?.(/[^a-zA-Z0-9]/g, '') ?? getAppId();
+
+    // Try configured server first, then fallbacks
+    let serverToUse = configServer;
+    if (connectionAttempts > 0 && currentServerIndex < FALLBACK_SERVERS.length) {
+        serverToUse = FALLBACK_SERVERS[currentServerIndex];
+        console.log(`[WebSocket] Trying fallback server ${currentServerIndex + 1}/${FALLBACK_SERVERS.length}: ${serverToUse}`);
+    }
+
+    const cleanedServer = serverToUse.replace(/[^a-zA-Z0-9.]/g, '');
     const socket_url = `wss://${cleanedServer}/websockets/v3?app_id=${cleanedAppId}&l=${getInitialLanguage()}&brand=${website_name.toLowerCase()}`;
+
+    console.log('%c[WebSocket] Connecting...', 'color: #2196f3; font-weight: bold');
+    console.log('[WebSocket] URL:', socket_url);
+    console.log('[WebSocket] Server:', cleanedServer);
+    console.log('[WebSocket] App ID:', cleanedAppId);
+    console.log('[WebSocket] Attempt:', connectionAttempts + 1);
+
     const deriv_socket = new WebSocket(socket_url);
+
+    deriv_socket.addEventListener('open', () => {
+        console.log('%c[WebSocket] ✓ Connected successfully!', 'color: #4caf50; font-weight: bold');
+        console.log('[WebSocket] Using server:', cleanedServer);
+        // Reset counters on successful connection
+        connectionAttempts = 0;
+        currentServerIndex = 0;
+    });
+
+    deriv_socket.addEventListener('error', (error) => {
+        console.error('%c[WebSocket] ✗ Connection error:', 'color: #f44336; font-weight: bold', error);
+        console.error('[WebSocket] Failed URL:', socket_url);
+        console.error('[WebSocket] Failed server:', cleanedServer);
+
+        connectionAttempts++;
+
+        // Try next fallback server
+        if (currentServerIndex < FALLBACK_SERVERS.length - 1) {
+            currentServerIndex++;
+            console.log(`[WebSocket] Will try next fallback server on reconnect: ${FALLBACK_SERVERS[currentServerIndex]}`);
+        } else {
+            console.error('[WebSocket] All fallback servers exhausted. Please check your network connection.');
+            currentServerIndex = 0; // Reset for next retry cycle
+        }
+    });
+
+    deriv_socket.addEventListener('close', (event) => {
+        console.warn('%c[WebSocket] Connection closed', 'color: #ff9800; font-weight: bold');
+        console.warn('[WebSocket] Close code:', event.code);
+        console.warn('[WebSocket] Close reason:', event.reason || 'No reason provided');
+        console.warn('[WebSocket] Was clean:', event.wasClean);
+
+        // Common close codes
+        const closeCodeMessages = {
+            1000: 'Normal closure',
+            1001: 'Going away',
+            1002: 'Protocol error',
+            1003: 'Unsupported data',
+            1006: 'Abnormal closure (no close frame)',
+            1007: 'Invalid frame payload data',
+            1008: 'Policy violation',
+            1009: 'Message too big',
+            1010: 'Missing extension',
+            1011: 'Internal server error',
+            1015: 'TLS handshake failure'
+        };
+
+        if (closeCodeMessages[event.code]) {
+            console.warn('[WebSocket] Close reason:', closeCodeMessages[event.code]);
+        }
+
+        // Suggest solutions for common issues
+        if (event.code === 1006) {
+            console.warn('[WebSocket] Tip: Code 1006 often indicates network/firewall issues or server unavailability');
+        } else if (event.code === 1015) {
+            console.warn('[WebSocket] Tip: Code 1015 indicates SSL/TLS issues. Check your system time and date.');
+        }
+    });
+
     const deriv_api = new DerivAPIBasic({
         connection: deriv_socket,
         middleware: new APIMiddleware({}),
     });
+
     return deriv_api;
 };
 

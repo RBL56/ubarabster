@@ -1,16 +1,28 @@
+@use 'components/shared/styles/constants' as *;
+@use 'components/shared/styles/mixins' as *;
+
 .free-bots {
     padding: 2.4rem;
     display: flex;
     flex-direction: column;
     gap: 2.4rem;
-    height: calc(100vh - 180px);
+    height: var(--tab-content-height);
     width: 100%;
     overflow-y: auto;
+
+    @include mobile-or-tablet-screen {
+        height: var(--tab-content-height-mobile);
+        padding: 1.6rem;
+    }
 
     &__header {
         display: flex;
         flex-direction: column;
         gap: 0.8rem;
+
+        @include mobile-screen {
+            text-align: center;
+        }
     }
 
     &__content {
@@ -20,12 +32,21 @@
         flex: 1;
         overflow-y: visible;
         overflow-x: visible;
+
+        @include mobile-screen {
+            gap: 1.6rem;
+        }
     }
 
     &__grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: 2.4rem;
+
+        @include mobile-screen {
+            grid-template-columns: 1fr;
+            gap: 1.6rem;
+        }
     }
 
     &__card {

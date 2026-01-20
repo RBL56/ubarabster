@@ -1,10 +1,18 @@
+@use 'components/shared/styles/constants' as *;
+@use 'components/shared/styles/mixins' as *;
+
 .trading-plans {
     padding: 1.5rem;
-    height: calc(100vh - 120px);
+    height: var(--tab-content-height);
     overflow-y: auto;
     background: var(--general-section-1);
     font-family: 'Inter', sans-serif;
     display: block;
+
+    @include mobile-or-tablet-screen {
+        height: var(--tab-content-height-mobile);
+        padding: 1.6rem 0.8rem;
+    }
 
     &__content {
         max-width: 100%;
@@ -56,7 +64,7 @@
             grid-template-columns: 400px 1fr;
             gap: 2rem;
 
-            @media (width <= 1024px) {
+            @include mobile-or-tablet-screen {
                 grid-template-columns: 1fr;
             }
         }
@@ -200,6 +208,14 @@
 
                 &.warning .value {
                     color: #f59e0b;
+                }
+
+                @include mobile-screen {
+                    padding: 1rem;
+
+                    .value {
+                        font-size: 1.4rem;
+                    }
                 }
             }
         }
