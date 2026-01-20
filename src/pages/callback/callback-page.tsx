@@ -105,7 +105,7 @@ const CallbackPage = () => {
                 // Determine the appropriate currency to use
                 const selected_currency = getSelectedCurrency(tokens, clientAccounts, state);
 
-                window.location.replace(window.location.origin + `bot/?account=${selected_currency}`);
+                window.location.replace(`${window.location.origin}${window.location.pathname.replace(/\/callback$/, '')}/?account=${selected_currency}`);
             }}
             renderReturnButton={() => {
                 return (

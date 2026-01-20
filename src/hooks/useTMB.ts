@@ -52,10 +52,25 @@ const useTMB = (): UseTMBReturn => {
     // const isEndpointPage = useMemo(() => window.location.pathname.includes('endpoint'), []);
     const isCallbackPage = useMemo(() => window.location.pathname === '/callback', []);
     const domains = useMemo(
-        () => ['deriv.com', 'deriv.dev', 'binary.sx', 'pages.dev', 'localhost', 'deriv.be', 'deriv.me', 'vercel.app'],
+        () => [
+            'deriv.com',
+            'deriv.dev',
+            'binary.sx',
+            'pages.dev',
+            'localhost',
+            'deriv.be',
+            'deriv.me',
+            'vercel.app',
+            '127.0.0.1',
+        ],
         []
     );
-    const currentDomain = useMemo(() => window.location.hostname.split('.').slice(-2).join('.'), []);
+    const hostname = window.location.hostname;
+    const isIp = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname);
+    const currentDomain = useMemo(() => {
+        if (isIp || hostname === 'localhost') return hostname;
+        return hostname.split('.').slice(-2).join('.');
+    }, [hostname, isIp]);
 
     const is_staging = useMemo(() => window.location.hostname.includes('staging'), []);
     const is_production = useMemo(() => !is_staging, [is_staging]);
@@ -339,9 +354,10 @@ const useTMB = (): UseTMBReturn => {
             console.error('Failed to logout', error);
         }
         removeCookies('affiliate_token', 'affiliate_tracking', 'utm_data', 'onfido_token', 'gclid');
-        if (domains.includes(currentDomain)) {
+        const isLocalHostOrIp = currentDomain === 'localhost' || isIp;
+        if (domains.includes(currentDomain) || isLocalHostOrIp) {
             Cookies.set('logged_state', 'false', {
-                domain: currentDomain,
+                ...(isLocalHostOrIp ? {} : { domain: currentDomain }),
                 expires: 30,
                 path: '/',
                 secure: true,
@@ -448,9 +464,10 @@ const useTMB = (): UseTMBReturn => {
                         }
                     }
 
-                    if (domains.includes(currentDomain)) {
+                    const isLocalHostOrIp = currentDomain === 'localhost' || isIp;
+                    if (domains.includes(currentDomain) || isLocalHostOrIp) {
                         Cookies.set('logged_state', 'true', {
-                            domain: currentDomain,
+                            ...(isLocalHostOrIp ? {} : { domain: currentDomain }),
                             expires: 30,
                             path: '/',
                             secure: true,
