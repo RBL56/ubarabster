@@ -481,6 +481,11 @@ const SpeedBot = observer(() => {
     };
 
     const tradeOnce = async (customStake?: number, customBarrier?: number) => {
+        // Sanitize arguments to prevent Event objects from being passed as stake
+        // This fixes the "Converting circular structure to JSON" error if tradeOnce is called as an event handler
+        const safeStake = typeof customStake === 'number' ? customStake : undefined;
+        const safeBarrier = typeof customBarrier === 'number' ? customBarrier : undefined;
+
         if (!api_base.api) {
             showToast('API not ready');
             return;
@@ -506,14 +511,14 @@ const SpeedBot = observer(() => {
         // UPDATE: If Martingale is enabled, 'Manual Trade' should probably use 'currentStake' 
         // to continue the sequence, unless a specific customStake was passed (e.g. from specific card).
         // If it's a "Global Trade Once", customStake is undefined.
-        const defaultStake = customStake || (martingaleEnabled ? currentStake : stake);
+        const defaultStake = safeStake || (martingaleEnabled ? currentStake : stake);
 
         const configs: { barrier?: number; stake: number }[] = [];
 
         // 1. Determine Trade Configurations
         // If customBarrier is provided, we are trading a SPECIFIC prediction (or single override)
-        if (customBarrier !== undefined) {
-            configs.push({ barrier: customBarrier, stake: defaultStake });
+        if (safeBarrier !== undefined) {
+            configs.push({ barrier: safeBarrier, stake: defaultStake });
         }
         else if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
             if (predictionMode === 'multi' && predictions.length > 0) {
@@ -551,7 +556,7 @@ const SpeedBot = observer(() => {
             // Restrict bulk trading to 'single' mode only for Digit Trades,
             // OR if we are forcing a single prediction trade (customBarrier)
             const isDigitTrade = ['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type);
-            if (!isDigitTrade || predictionMode === 'single' || customBarrier !== undefined) {
+            if (!isDigitTrade || predictionMode === 'single' || safeBarrier !== undefined) {
                 count = bulkTrades;
             }
         }
