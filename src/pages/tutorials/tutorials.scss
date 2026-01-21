@@ -227,7 +227,6 @@
 
 .tutorials-wrapper {
     width: 100%;
-    background: var(--general-main-1);
 
     @include tablet-screen {
         display: flex;
@@ -499,6 +498,7 @@
 
     &__search {
         @include mobile-or-tablet-screen {
+
             .tutorials-wrap,
             .faq__wrapper {
                 overflow: unset;

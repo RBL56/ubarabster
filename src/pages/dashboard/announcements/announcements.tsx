@@ -157,7 +157,11 @@ const Announcements = observer(({ is_mobile, is_tablet, handleTabChange }: TAnno
             announcement_action: selected_announcement?.announcement.cancel_button_text,
         });
         if (selected_announcement?.switch_tab_on_cancel) {
-            handleTabChange(selected_announcement.switch_tab_on_cancel);
+            if (selected_announcement.switch_tab_on_cancel === DBOT_TABS.TUTORIAL) {
+                useStore().dashboard.setTutorialVisibility(true);
+            } else {
+                handleTabChange(selected_announcement.switch_tab_on_cancel);
+            }
             if (selected_announcement.announcement.id === 'ACCUMULATOR_ANNOUNCE') {
                 openAccumulatorsVideo();
             }
@@ -172,7 +176,11 @@ const Announcements = observer(({ is_mobile, is_tablet, handleTabChange }: TAnno
             announcement_action: selected_announcement?.announcement.confirm_button_text,
         });
         if (selected_announcement?.switch_tab_on_confirm) {
-            handleTabChange(selected_announcement.switch_tab_on_confirm);
+            if (selected_announcement.switch_tab_on_confirm === DBOT_TABS.TUTORIAL) {
+                useStore().dashboard.setTutorialVisibility(true);
+            } else {
+                handleTabChange(selected_announcement.switch_tab_on_confirm);
+            }
         }
         if (selected_announcement?.should_toggle_qs_modal) {
             setFormVisibility(true);

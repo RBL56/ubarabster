@@ -19,13 +19,13 @@ const InfoPanel = observer(() => {
     const {
         active_tour,
         is_info_panel_visible,
-        setActiveTab,
         setActiveTabTutorial,
         setInfoPanelVisibility,
         setFaqTitle,
+        setTutorialVisibility,
     } = dashboard;
     const switchTab = (link: boolean, label: string, faq_id: string) => {
-        const tutorial_link = link ? setActiveTab(DBOT_TABS.TUTORIAL) : null;
+        const tutorial_link = link ? setTutorialVisibility(true) : null;
         const tutorial_label = label === 'Guide' ? setActiveTabTutorial(0) : setActiveTabTutorial(1);
         setFaqTitle(faq_id);
         return {

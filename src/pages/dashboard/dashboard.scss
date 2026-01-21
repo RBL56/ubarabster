@@ -205,6 +205,42 @@
                     }
                 }
             }
+
+            .dashboard__tutorial-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                height: 100%;
+                background: var(--general-main-1);
+                border-radius: 8px;
+                overflow: hidden;
+
+                .dashboard__tutorial-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1.6rem 2.4rem;
+                    background: var(--general-section-1);
+                    border-bottom: 1px solid var(--border-normal);
+
+                    .dashboard__tutorial-close {
+                        cursor: pointer;
+
+                        &-btn {
+                            padding: 4px 12px;
+                            border: 1px solid var(--loss-dangerous);
+                            border-radius: 4px;
+                            color: var(--loss-dangerous);
+                            background: transparent;
+
+                            &:hover {
+                                background: var(--loss-dangerous);
+                                color: #fff !important;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         &__mobile-container {

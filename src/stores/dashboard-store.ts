@@ -61,6 +61,8 @@ export interface IDashboardStore {
     is_chart_modal_visible: boolean;
     is_trading_view_modal_visible: boolean;
     setPreviewOnPopup: (is_preview_on_popup: boolean) => void;
+    is_tutorial_visible: boolean;
+    setTutorialVisibility: (visibility: boolean) => void;
 }
 
 export default class DashboardStore implements IDashboardStore {
@@ -121,6 +123,8 @@ export default class DashboardStore implements IDashboardStore {
             is_chart_modal_visible: observable,
             is_trading_view_modal_visible: observable,
             bot_builder_symbol: observable,
+            is_tutorial_visible: observable,
+            setTutorialVisibility: action.bound,
         });
         this.root_store = root_store;
         this.core = core;
@@ -206,6 +210,7 @@ export default class DashboardStore implements IDashboardStore {
     is_chart_modal_visible = false;
     is_trading_view_modal_visible = false;
     faq_title = '';
+    is_tutorial_visible = false;
 
     setFaqTitle = (faq_title: string) => {
         this.faq_title = faq_title;
@@ -378,6 +383,10 @@ export default class DashboardStore implements IDashboardStore {
 
     setInfoPanelVisibility = (is_info_panel_visible: boolean): void => {
         this.is_info_panel_visible = is_info_panel_visible;
+    };
+
+    setTutorialVisibility = (is_tutorial_visible: boolean): void => {
+        this.is_tutorial_visible = is_tutorial_visible;
     };
 
     onZoomInOutClick = (is_zoom_in: boolean): void => {
