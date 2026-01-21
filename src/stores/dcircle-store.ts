@@ -24,6 +24,10 @@ export default class DcircleStore {
     recentTicks: TickFeedItem[] = []; // Live tick feed
     digitCounts: number[] = Array(10).fill(0); // Optimization: Store counts directly
     debugStatus = 'Idle';
+    tickRate = 0;
+    lastTickTime = Date.now();
+    isStalled = false;
+    lastReceivedSymbol = ''; // Debug: Track what symbols are coming in
 
     subscriptionId: string | null = null;
     digitHistory: number[] = [];
@@ -45,6 +49,10 @@ export default class DcircleStore {
             currentDigit: observable,
             recentTicks: observable,
             isInitialized: observable,
+            debugStatus: observable,
+            tickRate: observable,
+            isStalled: observable,
+            lastReceivedSymbol: observable,
             setVolatility: action.bound,
             setTicksCount: action.bound,
             setThreshold: action.bound,
@@ -79,11 +87,35 @@ export default class DcircleStore {
             () => this.recentTicks.length, // Reacts to tick feed updates
             length => {
                 if (length > 0) {
-                    // Debug log to verify continuous updates
-                    // console.log(`[Dcircle] Continuous Update Check: Tick processed. Total: ${this.digitHistory.length}`);
+                    runInAction(() => {
+                        this.lastTickTime = Date.now();
+                        this.isStalled = false;
+                    });
                 }
             }
         );
+
+        // Periodically check for stalls and update tick rate
+        setInterval(() => {
+            runInAction(() => {
+                const now = Date.now();
+                const timeSinceLastTick = now - this.lastTickTime;
+
+                if (this.isInitialized && timeSinceLastTick > 5000) {
+                    this.isStalled = true;
+                    this.debugStatus = 'Warning: Tick stream stalled';
+
+                    // Auto-reconnect after 15 seconds of stalling
+                    if (timeSinceLastTick > 15000 && !this.isLoading) {
+                        console.log('[Dcircle] Attempting auto-reconnect due to prolonged stall...');
+                        this.initialise();
+                    }
+                }
+
+                // Simple tick rate calculation (every 1000ms)
+                // In a real scenario we'd count ticks in the last second
+            });
+        }, 1000);
     }
 
     setVolatility(v: string) {
@@ -191,6 +223,8 @@ export default class DcircleStore {
 
         this.isLoading = true;
         this.debugStatus = 'Initializing...';
+        this.lastTickTime = Date.now(); // Reset timer to give initialization time
+        this.isStalled = false;
 
         // Ensure pip_sizes are available for precision
         if (Object.keys(api_base.pip_sizes).length === 0) {
@@ -257,6 +291,12 @@ export default class DcircleStore {
                 if (subRes.subscription) {
                     this.subscriptionId = subRes.subscription.id;
                     this.debugStatus = 'Live Stream Connected';
+
+                    // Handle the first tick if it came with the subscription response
+                    if (subRes.tick) {
+                        console.log('[Dcircle] First tick received in subscription response');
+                        this.handleTick(subRes);
+                    }
                 } else if (subRes.error) {
                     this.debugStatus = `Sub Error: ${subRes.error.message}`;
                 }
@@ -285,6 +325,7 @@ export default class DcircleStore {
 
                     const lastPrice = res.history.prices[res.history.prices.length - 1];
                     this.currentPrice = lastPrice.toFixed(precision);
+                    this.currentDigit = this.processTickData(lastPrice, precision);
 
                     // Backfill recentTicks from history (last 30)
                     const historyLength = res.history.prices.length;
@@ -331,18 +372,17 @@ export default class DcircleStore {
     }
 
     handleTick(response: any) {
-        // Debug: Log ALL incoming messages (first 20 only to avoid spam)
-        if (this.digitHistory.length < 20) {
-            console.log('[Dcircle] Incoming message:', {
-                type: response.msg_type,
-                hasTickData: !!(response.tick || response.ohlc),
-                symbol: response.tick?.symbol || response.ohlc?.symbol || 'N/A',
-                quote: response.tick?.quote || response.ohlc?.close || 'N/A'
-            });
-        }
+        // Handle BOTH direct responses and wrapped { data: { ... } } responses
+        const msg = response.data || response;
+        const tick = msg.tick || msg.ohlc;
 
-        const tick = response.tick || response.ohlc;
-        if (!tick) return;
+        if (!tick) {
+            // Log non-tick messages periodically for debugging
+            if (this.isStalled) {
+                console.log('[Dcircle] Non-tick message received while stalled:', msg.msg_type);
+            }
+            return;
+        }
 
         // Normalize symbols for comparison - remove common suffixes and convert to lowercase
         const normalizeSymbol = (symbol: string) => {
@@ -355,6 +395,10 @@ export default class DcircleStore {
 
         const incomingSymbol = normalizeSymbol(tick.symbol);
         const currentSymbol = normalizeSymbol(this.volatility);
+
+        runInAction(() => {
+            this.lastReceivedSymbol = `${tick.symbol} (${incomingSymbol})`;
+        });
 
         // Debug: Log symbol comparison
         if (this.digitHistory.length < 5) {
@@ -412,8 +456,17 @@ export default class DcircleStore {
                 }
 
                 // Add to tick feed
-                const now = new Date();
-                const timestamp = now.toLocaleTimeString('en-US', { hour12: false });
+                const now = Date.now();
+                const timestamp = new Date(now).toLocaleTimeString('en-US', { hour12: false });
+
+                // Update tick rate logic
+                const timeDiff = now - this.lastTickTime;
+                if (timeDiff > 0) {
+                    this.tickRate = Number((1000 / timeDiff).toFixed(1));
+                }
+                this.lastTickTime = now;
+                this.isStalled = false;
+
                 this.recentTicks.unshift({
                     timestamp,
                     price: quote.toFixed(precision),

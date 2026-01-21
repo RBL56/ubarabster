@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
+import { reaction } from 'mobx';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
 import { Localize, localize } from '@deriv-com/translations';
@@ -76,16 +77,6 @@ const Dcircle = observer(() => {
         if (!isInitialized && connectionStatus === 'opened') {
             initialise();
         }
-        return () => {
-            // Optional: cleanup() if we want to stop stream when switching tabs
-            // But usually DcircleStore might be intended to persist.
-            // However, to ensure "Fresh" start or stop background network usage:
-            // dcircle.cleanup();
-            // For now, let's just leave it as is if persistence is desired,
-            // but the user asked for problems.
-            // Actually, let's NOT aggressively cleanup if the store is global.
-            // But looking at DcircleStore, it seems tied to the page.
-        };
     }, [connectionStatus, initialise, isInitialized]);
 
     const containerRef = React.useRef<HTMLDivElement>(null);
@@ -109,24 +100,66 @@ const Dcircle = observer(() => {
     };
 
     useEffect(() => {
-        // console.log('[Dcircle] Cursor Update Triggered. Current Digit:', currentDigit);
         if (currentDigit !== null && circleRefs.current[currentDigit] && containerRef.current && cursorRef.current) {
             const circle = circleRefs.current[currentDigit];
             const container = containerRef.current;
             const cursor = cursorRef.current;
 
-            const circleRect = circle!.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
+            const updatePosition = () => {
+                if (!circle || !container || !cursor) return;
+                const circleRect = circle.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
 
-            const x = circleRect.left - containerRect.left + circleRect.width / 2;
-            const y = circleRect.top - containerRect.top + circleRect.height / 2;
+                const x = circleRect.left - containerRect.left + circleRect.width / 2;
+                const y = circleRect.top - containerRect.top + circleRect.height / 2;
 
-            cursor.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
-            cursor.style.opacity = '1';
+                cursor.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+                cursor.style.opacity = '1';
+            };
+
+            requestAnimationFrame(updatePosition);
         } else if (cursorRef.current) {
             cursorRef.current.style.opacity = '0';
         }
-    }, [currentDigit, recentTicks[0]]); // recentTicks[0] changes on every tick
+    }, [currentDigit]); // Only depend on currentDigit for smoother transitions
+
+    const tickFeedRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        // Direct DOM update for high frequency ticks
+        const disposer = reaction(
+            () => ({ ticks: [...dcircle.recentTicks], threshold: dcircle.threshold, currentDigit: dcircle.currentDigit }),
+            ({ ticks, threshold, currentDigit }) => {
+                if (tickFeedRef.current) {
+                    if (ticks.length === 0) {
+                        tickFeedRef.current.innerHTML = `<div class='tick-feed-empty'>${localize('Waiting for ticks...')}</div>`;
+                    } else {
+                        const html = ticks.map(tick => {
+                            let colorClass = 'neutral';
+                            if (tick.digit < threshold) colorClass = 'green';
+                            else if (tick.digit === threshold) colorClass = 'neutral';
+                            else colorClass = 'red';
+                            return `<div class="digit-box ${colorClass}">${tick.digit}</div>`;
+                        }).join('');
+                        tickFeedRef.current.innerHTML = html;
+                    }
+                }
+
+                // Trigger hit animation on circle
+                if (currentDigit !== null && circleRefs.current[currentDigit]) {
+                    const el = circleRefs.current[currentDigit];
+                    el?.classList.add('hit');
+                    setTimeout(() => {
+                        el?.classList.remove('hit');
+                    }, 300);
+                }
+            },
+            { fireImmediately: true }
+        );
+        return () => disposer();
+    }, [dcircle]);
+
+    const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     return (
         <div className='dcircle'>
@@ -170,13 +203,14 @@ const Dcircle = observer(() => {
                     values={{ count: ticksCount }}
                 />
                 {isLoading && <span className='loading'></span>}
-                <div style={{ fontSize: '10px', opacity: 0.5, marginTop: '4px' }}>
-                    Status: {dcircle.debugStatus} | Symbol: {volatility}
-                </div>
             </div>
 
             <div className='circles-container' ref={containerRef}>
-                <div className='digit-cursor' ref={cursorRef}></div>
+                <div className='digit-cursor' ref={cursorRef}>
+                    <div className='cursor-content'>
+                        {currentDigit !== null ? `${digitStats[currentDigit] ?? '0.0'}%` : ''}
+                    </div>
+                </div>
                 <div className='circles-row'>
                     {[0, 1, 2, 3, 4].map(d => (
                         <div
@@ -267,41 +301,9 @@ const Dcircle = observer(() => {
 
             <div className='tick-feed-section'>
                 <div className='analysis-title'>{localize('Recent Digits')}</div>
-                <div className='tick-feed-grid'>
-                    {recentTicks.length === 0 ? (
-                        <div className='tick-feed-empty'>{localize('Waiting for ticks...')}</div>
-                    ) : (
-                        recentTicks.map((tick, idx) => {
-                            // Determine color based on threshold (Over/Under logic)
-                            let colorClass = 'neutral';
-                            if (tick.digit < threshold) {
-                                colorClass = 'green'; // Under (winning side)
-                            } else if (tick.digit === threshold) {
-                                colorClass = 'neutral'; // Equal (gray)
-                            } else {
-                                colorClass = 'red'; // Over (losing side)
-                            }
-
-                            return (
-                                <div key={idx} className={`digit-box ${colorClass}`}>
-                                    {tick.digit}
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
+                <div className='tick-feed-grid' ref={tickFeedRef}></div>
             </div>
 
-            <div className='note-section'>
-                <p>
-                    {localize('Jump Indices have large periodic jumps')}
-                    <br />
-                    {localize('(more intense on higher levels)')}
-                </p>
-                <p style={{ fontSize: '12px', marginTop: '10px' }}>
-                    {localize('Click any digit (0-9) to set it as the Over/Under threshold')}
-                </p>
-            </div>
         </div>
     );
 });

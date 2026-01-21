@@ -75,6 +75,11 @@ const SpeedBot = observer(() => {
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+    const liveDigitsRef = useRef<HTMLDivElement>(null);
+    const lastDigitRef = useRef<HTMLDivElement>(null);
+    const liveDigitsBufferRef = useRef<{ value: number; color: string }[]>([]);
+    const ldpCellsRef = useRef<(HTMLDivElement | null)[]>([]);
+
     const digitHistoryRef = useRef<number[]>([]);
     const lastResultRef = useRef<'won' | 'lost' | null>(null);
     const activeContractIdRef = useRef<number | null>(null);
@@ -142,8 +147,61 @@ const SpeedBot = observer(() => {
         }
         const counts = Array(10).fill(0);
         digitHistoryRef.current.forEach(d => counts[d]++);
-        setLdpStats(counts);
-        setEntropy(calculateEntropy(counts, digitHistoryRef.current.length));
+
+        // Calculate Entropy
+        const ent = calculateEntropy(counts, digitHistoryRef.current.length);
+        setEntropy(ent);
+    }, []);
+
+    const updateLdpGrid = useCallback((lastDigit: number) => {
+        const total = digitHistoryRef.current.length;
+        if (total === 0) return;
+
+        const counts = Array(10).fill(0);
+        digitHistoryRef.current.forEach(d => counts[d]++);
+        const max = Math.max(...counts);
+
+        counts.forEach((count, d) => {
+            const cell = ldpCellsRef.current[d];
+            if (cell) {
+                // 1. Color
+                const intensity = max > 0 ? count / max : 0;
+                const hue = 120 - intensity * 100 * 1.2;
+                const bgColor = `hsl(${hue}, 75%, ${35 + intensity * 0.3 * 100}%)`;
+                cell.style.backgroundColor = bgColor;
+
+                // 2. Percent & Count
+                const percentVal = (count / total) * 100;
+                const percentStr = percentVal.toFixed(1).padStart(5, '0'); // "012.3"
+                const percentDigits = percentStr.replace('.', '').split(''); // ["0", "1", "2", "3"]
+
+                const percentEl = cell.querySelector('.percent');
+                const countEl = cell.querySelector('.count');
+
+                if (percentEl) {
+                    const cols = percentEl.querySelectorAll('.digit-col');
+                    cols.forEach((col: any, i) => {
+                        const val = parseInt(percentDigits[i], 10);
+                        col.style.transform = `translateY(-${val * 1.2}em)`;
+
+                        // Hide leading zeros for hundreds and tens
+                        if (i === 0 && percentDigits[0] === '0') {
+                            col.style.opacity = '0';
+                        } else if (i === 1 && percentDigits[0] === '0' && percentDigits[1] === '0') {
+                            col.style.opacity = '0';
+                        } else {
+                            col.style.opacity = '1';
+                        }
+                    });
+                }
+
+                if (countEl) countEl.textContent = String(count);
+
+                // 3. Cursor
+                if (d === lastDigit) cell.classList.add('cursor-active');
+                else cell.classList.remove('cursor-active');
+            }
+        });
     }, []);
 
     const processTick = useCallback((quote: number, precision: number) => {
@@ -151,6 +209,19 @@ const SpeedBot = observer(() => {
         const digit = parseInt(digitStr, 10);
         const color = digit <= 3 ? 'red' : digit <= 6 ? 'orange' : 'green';
         return { digit, color };
+    }, []);
+
+    const updateLiveDigits = useCallback((item: { value: number; color: string }) => {
+        liveDigitsBufferRef.current.unshift(item);
+        if (liveDigitsBufferRef.current.length > 40) {
+            liveDigitsBufferRef.current.pop();
+        }
+
+        if (liveDigitsRef.current) {
+            liveDigitsRef.current.innerHTML = liveDigitsBufferRef.current
+                .map(d => `<div class="digit ${d.color}">${d.value}</div>`)
+                .join("");
+        }
     }, []);
 
     // -- Live Data Subscription --
@@ -188,9 +259,14 @@ const SpeedBot = observer(() => {
                 setDebugStatus('Initializing...');
                 // Clear state for new symbol
                 setDigits([]);
+                liveDigitsBufferRef.current = [];
+                if (liveDigitsRef.current) liveDigitsRef.current.innerHTML = '';
+
                 setLdpStats(Array(10).fill(0));
                 setEntropy('—');
                 setLastDigit('—');
+                if (lastDigitRef.current) lastDigitRef.current.textContent = '—';
+
                 digitHistoryRef.current = [];
 
                 // Get Ticks History
@@ -207,20 +283,42 @@ const SpeedBot = observer(() => {
                 if (isMounted && res.history && res.history.prices) {
                     const precision = getPrecision(symbol);
                     const historicalDigits: number[] = [];
-                    const displayDigits: { value: number; color: string }[] = [];
+                    // Populate buffer without rendering yet? Or render everything
 
                     res.history.prices.forEach((price: number) => {
                         const { digit, color } = processTick(price, precision);
                         historicalDigits.push(digit);
-                        if (historicalDigits.length > 40) displayDigits.push({ value: digit, color });
-                        else displayDigits.push({ value: digit, color });
+
+                        // Populate local buffer only for last 40
+                        // Since for loop is old->new, we can just push to a temp array then slice
+                    });
+
+                    // Build buffer for UI
+                    const recentPrices = res.history.prices.slice(-40).reverse(); // Newest first for UI
+                    const buffer: { value: number; color: string }[] = [];
+
+                    // We want newest first in the buffer for display
+                    // The loop above gave us historical order
+                    // Let's re-process last 40 safely
+                    const last40 = res.history.prices.slice(-40);
+                    // Actually, updateLiveDigits unshifts (adds to front), so we should feed it Oldest -> Newest? 
+                    // No, unshift adds to front, so if we feed 1, then 2, buffer is [2, 1].
+                    // So we want Oldest -> Newest feed to have Newest at front.
+
+                    last40.forEach((p: number) => {
+                        const { digit, color } = processTick(p, precision);
+                        updateLiveDigits({ value: digit, color });
                     });
 
                     digitHistoryRef.current = historicalDigits;
-                    if (displayDigits.length > 0) {
-                        setDigits(displayDigits.slice(-40));
-                        setLastDigit(displayDigits[displayDigits.length - 1].value);
+
+                    if (historicalDigits.length > 0) {
+                        const lastD = historicalDigits[historicalDigits.length - 1];
+                        setLastDigit(lastD); // Keep state for consistency
+                        if (lastDigitRef.current) lastDigitRef.current.textContent = String(lastD);
+                        updateLdpGrid(lastD);
                     }
+
                     updateLdpStats();
                 }
 
@@ -262,17 +360,25 @@ const SpeedBot = observer(() => {
                 const precision = getPrecision(symbol);
                 const { digit, color } = processTick(quote, precision);
 
-                setLastDigit(digit);
-                setDigits(prev => {
-                    const updated = [...prev, { value: digit, color }];
-                    if (updated.length > 40) return updated.slice(updated.length - 40);
-                    return updated;
-                });
+                // 1. Direct DOM Update for Speed (Live Digits)
+                updateLiveDigits({ value: digit, color });
 
+                // 2. Direct DOM Update for Last Digit
+                if (lastDigitRef.current) {
+                    lastDigitRef.current.textContent = String(digit);
+                }
+
+                // 3. Update Ref History (Stats)
                 digitHistoryRef.current.push(digit);
                 if (digitHistoryRef.current.length > 1000) digitHistoryRef.current.shift();
 
                 updateLdpStats();
+                updateLdpGrid(digit); // Explicitly update grid via DOM for speed
+
+                // Note: We avoid setLastDigit() on every tick to prevent full component re-renders
+                // which would wipe our manual DOM updates in the live strip.
+                // We only update lastDigit state if we really need it for something else,
+                // but currently the cursor in the grid and the metric are handled by refs/manual updates.
             }
         };
 
@@ -283,7 +389,7 @@ const SpeedBot = observer(() => {
         }
 
         return cleanup;
-    }, [volatility, updateLdpStats, connectionStatus, processTick]);
+    }, [volatility, updateLdpStats, connectionStatus, processTick, updateLiveDigits]);
 
     // -- Transaction Monitor --
     useEffect(() => {
@@ -1082,33 +1188,45 @@ const SpeedBot = observer(() => {
 
                     {/* -- Live Data Section -- */}
                     <section className='card'>
-                        <h3>Live digits</h3>
-                        <div className='digits'>
-                            {digits.map((d, i) => (
-                                <div key={i} className={clsx('digit', d.color)}>
-                                    {d.value}
-                                </div>
-                            ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <h3 style={{ margin: 0 }}>Live digits</h3>
+                            <div className='status-dot-pulse'></div>
+                        </div>
+
+                        {/* Wrapper for direct DOM manipulation to survive React cycles */}
+                        <div className='live-digits-wrapper'>
+                            <div className='digits' ref={liveDigitsRef}></div>
                         </div>
 
                         <div className='section-title'>Last Digit Stats (last {totalDigits} ticks)</div>
                         <div className='ldp-grid'>
                             {Array.from({ length: 10 }).map((_, d) => {
-                                const count = ldpStats[d] || 0;
-                                const percent = totalDigits > 0 ? ((count / totalDigits) * 100).toFixed(1) : 0;
-                                const bgColor = getLdpColor(d, count, totalDigits, maxCount);
-                                const isCursor = lastDigit === d;
-
+                                // Initial render only - updates happen via refs
                                 return (
                                     <div
-                                        key={`${d}-${isCursor ? digitHistoryRef.current.length : 'off'}`}
-                                        className={clsx('ldp-cell', { 'cursor-active': isCursor })}
-                                        style={{ backgroundColor: bgColor }}
+                                        key={d}
+                                        ref={el => (ldpCellsRef.current[d] = el)}
+                                        className='ldp-cell'
                                         onClick={() => handleDigitClick(d)}
                                     >
                                         <div className='digit-num'>{d}</div>
-                                        <div className='percent'>{percent}%</div>
-                                        <div className='count'>{count}</div>
+                                        <div className='percent'>
+                                            {[0, 1, 2].map(i => (
+                                                <div key={i} className='digit-col' style={{ opacity: i < 2 ? 0 : 1 }}>
+                                                    {Array.from({ length: 10 }).map((_, n) => (
+                                                        <span key={n}>{n}</span>
+                                                    ))}
+                                                </div>
+                                            ))}
+                                            <span>.</span>
+                                            <div className='digit-col'>
+                                                {Array.from({ length: 10 }).map((_, n) => (
+                                                    <span key={n}>{n}</span>
+                                                ))}
+                                            </div>
+                                            <span>%</span>
+                                        </div>
+                                        <div className='count'>0</div>
                                     </div>
                                 );
                             })}
@@ -1125,7 +1243,7 @@ const SpeedBot = observer(() => {
                             </div>
                             <div className='metric'>
                                 <div className='label'>Last digit</div>
-                                <div className='value'>{lastDigit}</div>
+                                <div className='value' ref={lastDigitRef}>{lastDigit}</div>
                             </div>
                         </div>
 

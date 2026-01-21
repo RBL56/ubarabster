@@ -147,11 +147,19 @@
         }
     }
 
+    .live-digits-wrapper {
+        background: rgba(13, 32, 54, 0.4);
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(46, 163, 242, 0.1);
+        margin: 16px 0;
+    }
+
     .digits {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
         gap: 8px;
-        margin: 16px 0;
+        margin: 0;
 
         @include tablet-or-desktop-screen {
             grid-template-columns: repeat(10, 1fr);
@@ -320,6 +328,23 @@
         .percent {
             font-size: 13px;
             color: #9fb3c8;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+            height: 1.2em;
+            line-height: 1.2em;
+
+            .digit-col {
+                display: flex;
+                flex-direction: column;
+                transition: transform 0.5s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+
+                span {
+                    display: block;
+                    height: 1.2em;
+                    text-align: center;
+                }
+            }
         }
 
         .count {
