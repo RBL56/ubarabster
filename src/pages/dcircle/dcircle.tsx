@@ -126,23 +126,60 @@ const Dcircle = observer(() => {
     const tickFeedRef = React.useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Direct DOM update for high frequency ticks
+        // Direct DOM update for high frequency ticks without blinking
+        let lastTickId = '';
+        let lastThreshold = dcircle.threshold;
+
         const disposer = reaction(
-            () => ({ ticks: [...dcircle.recentTicks], threshold: dcircle.threshold, currentDigit: dcircle.currentDigit }),
+            () => ({
+                ticks: [...dcircle.recentTicks],
+                threshold: dcircle.threshold,
+                currentDigit: dcircle.currentDigit
+            }),
             ({ ticks, threshold, currentDigit }) => {
-                if (tickFeedRef.current) {
-                    if (ticks.length === 0) {
-                        tickFeedRef.current.innerHTML = `<div class='tick-feed-empty'>${localize('Waiting for ticks...')}</div>`;
-                    } else {
-                        const html = ticks.map(tick => {
-                            let colorClass = 'neutral';
-                            if (tick.digit < threshold) colorClass = 'green';
-                            else if (tick.digit === threshold) colorClass = 'neutral';
-                            else colorClass = 'red';
-                            return `<div class="digit-box ${colorClass}">${tick.digit}</div>`;
-                        }).join('');
-                        tickFeedRef.current.innerHTML = html;
+                if (!tickFeedRef.current) return;
+
+                const newTick = ticks[0];
+                const newTickId = newTick ? `${newTick.timestamp}-${newTick.price}` : '';
+                const isNewTick = newTickId !== lastTickId;
+                const isFirstLoad = lastTickId === '';
+                const thresholdChanged = threshold !== lastThreshold;
+
+                if (ticks.length === 0) {
+                    tickFeedRef.current.innerHTML = `<div class='tick-feed-empty'>${localize('Waiting for ticks...')}</div>`;
+                    lastTickId = '';
+                    lastThreshold = threshold;
+                    return;
+                }
+
+                // Full render if first load or threshold changed
+                if (isFirstLoad || thresholdChanged) {
+                    const html = ticks.map(tick => {
+                        let colorClass = 'neutral';
+                        if (tick.digit < threshold) colorClass = 'green';
+                        else if (tick.digit === threshold) colorClass = 'neutral';
+                        else colorClass = 'red';
+                        // Add no-animation class for historical items to avoid massive blinking on load
+                        return `<div class="digit-box ${colorClass} no-animation">${tick.digit}</div>`;
+                    }).join('');
+                    tickFeedRef.current.innerHTML = html;
+                    lastTickId = newTickId;
+                    lastThreshold = threshold;
+                } else if (isNewTick) {
+                    // Optimized: Only prepend the newest digit
+                    let colorClass = 'neutral';
+                    if (newTick.digit < threshold) colorClass = 'green';
+                    else if (newTick.digit === threshold) colorClass = 'neutral';
+                    else colorClass = 'red';
+
+                    const newDigitHtml = `<div class="digit-box ${colorClass}">${newTick.digit}</div>`;
+                    tickFeedRef.current.insertAdjacentHTML('afterbegin', newDigitHtml);
+
+                    // Maintain visual limit (50)
+                    while (tickFeedRef.current.children.length > 50) {
+                        tickFeedRef.current.lastElementChild?.remove();
                     }
+                    lastTickId = newTickId;
                 }
 
                 // Trigger hit animation on circle

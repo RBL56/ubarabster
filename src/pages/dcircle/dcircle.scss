@@ -604,6 +604,10 @@
         transition: transform 0.2s;
         animation: slideIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.2);
 
+        &.no-animation {
+            animation: none !important;
+        }
+
         &:hover {
             transform: scale(1.05);
         }

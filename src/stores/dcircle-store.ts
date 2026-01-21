@@ -327,9 +327,9 @@ export default class DcircleStore {
                     this.currentPrice = lastPrice.toFixed(precision);
                     this.currentDigit = this.processTickData(lastPrice, precision);
 
-                    // Backfill recentTicks from history (last 30)
+                    // Backfill recentTicks from history (last 50)
                     const historyLength = res.history.prices.length;
-                    const backfillCount = Math.min(historyLength, 30);
+                    const backfillCount = Math.min(historyLength, 50);
                     const backfillPrices = res.history.prices.slice(-backfillCount).reverse();
                     const backfillTimes = res.history.times.slice(-backfillCount).reverse();
 
@@ -473,7 +473,7 @@ export default class DcircleStore {
                     digit,
                     isUp,
                 });
-                if (this.recentTicks.length > 30) this.recentTicks.pop();
+                if (this.recentTicks.length > 50) this.recentTicks.pop();
 
                 this.updateAnalysis();
             });

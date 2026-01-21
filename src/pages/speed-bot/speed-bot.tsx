@@ -218,9 +218,13 @@ const SpeedBot = observer(() => {
         }
 
         if (liveDigitsRef.current) {
-            liveDigitsRef.current.innerHTML = liveDigitsBufferRef.current
-                .map(d => `<div class="digit ${d.color}">${d.value}</div>`)
-                .join("");
+            const newDigitHtml = `<div class="digit ${item.color}">${item.value}</div>`;
+            liveDigitsRef.current.insertAdjacentHTML('afterbegin', newDigitHtml);
+
+            // Maintain the limit of 40 in the DOM
+            if (liveDigitsRef.current.children.length > 40) {
+                liveDigitsRef.current.lastElementChild?.remove();
+            }
         }
     }, []);
 
