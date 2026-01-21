@@ -68,6 +68,9 @@ const SpeedBot = observer(() => {
     const [currentStake, setCurrentStake] = useState(0.5);
     const [consecutiveLosses, setConsecutiveLosses] = useState(0);
     const [totalProfit, setTotalProfit] = useState(0);
+    const [totalWins, setTotalWins] = useState(0);
+    const [totalLosses, setTotalLosses] = useState(0);
+    const [lastResultDisplay, setLastResultDisplay] = useState<'WIN' | 'LOSS' | null>(null);
     const [debugStatus, setDebugStatus] = useState('Idle');
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -303,6 +306,11 @@ const SpeedBot = observer(() => {
                                     activeContractIdRef.current = null;
                                     setIsTrading(false);
 
+                                    if (!isAutoTrading) {
+                                        showToast(`Trade ${status.toUpperCase()}! Profit: ${poc.profit}`);
+                                        setLastResultDisplay(status === 'won' ? 'WIN' : 'LOSS');
+                                    }
+
                                     // Explicitly request balance update to ensure it reflects in the header
                                     api_base.api.send({ balance: 1, subscribe: 1 });
                                 }
@@ -412,35 +420,7 @@ const SpeedBot = observer(() => {
         }
     };
 
-    const tradeOnce = async (customStake?: number) => {
-        if (!api_base.api) {
-            showToast('API not ready');
-            return;
-        }
-
-        if (isTrading) return;
-
-        const symbol = getSymbol(volatility);
-        const contract_type = getContractType();
-        const tradeStake = customStake || stake;
-
-        const req: any = {
-            proposal: 1,
-            amount: tradeStake,
-            basis: 'stake',
-            contract_type: contract_type,
-            currency: client.currency || 'USD',
-            duration: ticks,
-            duration_unit: 't',
-            symbol: symbol,
-        };
-        if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
-            req.barrier = singleDigit;
-        }
-
-        setIsTrading(true);
-        if (!isAutoTrading) showToast('Placing trade...');
-
+    const executeTrade = async (req: any, tradeStake: number, contract_type: string) => {
         try {
             // 1. Get Proposal
             const propRes: any = await api_base.api.send(req);
@@ -462,28 +442,96 @@ const SpeedBot = observer(() => {
                     setTransactions(prev => [newTx, ...prev]);
                     activeContractIdRef.current = buyRes.buy.contract_id;
 
-                    // Emit events to show in main app Run Panel
+                    // Emit events
                     botObserver.emit('bot.running');
                     botObserver.emit('contract.status', {
                         id: 'contract.purchase_received',
                         buy: buyRes.buy
                     });
 
-                    // Subscribe to updates for this contract
+                    // Subscribe to updates
                     api_base.api.send({ proposal_open_contract: 1, contract_id: buyRes.buy.contract_id, subscribe: 1 });
-                    if (!isAutoTrading) showToast('Trade placed successfully!');
+
+                    // Only show success toast for single trades to avoid spam
+                    if (!isAutoTrading && (!bulkEnabled || bulkTrades === 1)) {
+                        showToast('Trade placed successfully!');
+                    }
                 } else if (buyRes.error) {
                     showToast(buyRes.error.message);
-                    setIsTrading(false);
                 }
             } else if (propRes.error) {
                 showToast(propRes.error.message);
-                setIsTrading(false);
             }
         } catch (e: any) {
             showToast('Trade error: ' + (e.message || e));
-            setIsTrading(false);
         }
+    };
+
+    const tradeOnce = async (customStake?: number) => {
+        if (!api_base.api) {
+            showToast('API not ready');
+            return;
+        }
+
+        if (isTrading) return;
+
+        const symbol = getSymbol(volatility);
+        const contract_type = getContractType();
+        // Base Stake: usage depends on mode. For 'multi', we use individual stakes.
+        // For others, we use customStake (if auto martanigaling) or global 'stake'.
+        const defaultStake = customStake || stake;
+
+        const configs: { barrier?: number; stake: number }[] = [];
+
+        // 1. Determine Trade Configurations
+        if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
+            if (predictionMode === 'multi' && predictions.length > 0) {
+                // Multi Mode: Trade ALL predictions with their specific stakes
+                predictions.forEach(p => {
+                    configs.push({ barrier: p.digit, stake: p.stake });
+                });
+            } else if (predictionMode === 'recovery') {
+                // Recovery Mode Logic
+                const val = consecutiveLosses > 0 ? Number(predPost) : Number(predPre);
+                configs.push({ barrier: val, stake: defaultStake });
+            } else {
+                // Single / Default
+                configs.push({ barrier: singleDigit, stake: defaultStake });
+            }
+        } else {
+            // Non-Digit Trades (Even/Odd etc)
+            configs.push({ stake: defaultStake });
+        }
+
+        const baseReq: any = {
+            proposal: 1,
+            basis: 'stake',
+            contract_type: contract_type,
+            currency: client.currency || 'USD',
+            duration: ticks,
+            duration_unit: 't',
+            symbol: symbol,
+        };
+
+        setIsTrading(true);
+        const count = bulkEnabled ? bulkTrades : 1;
+        const totalTrades = count * configs.length;
+
+        if (!isAutoTrading) {
+            showToast(totalTrades > 1 ? `Placing ${totalTrades} trades...` : 'Placing trade...');
+        }
+
+        const promises = [];
+        for (let i = 0; i < count; i++) {
+            for (const cfg of configs) {
+                const specificReq = { ...baseReq, amount: cfg.stake };
+                if (cfg.barrier !== undefined) specificReq.barrier = cfg.barrier;
+                promises.push(executeTrade(specificReq, cfg.stake, contract_type));
+            }
+        }
+
+        await Promise.all(promises);
+        setIsTrading(false);
     };
 
     const startAuto = () => {
@@ -498,6 +546,9 @@ const SpeedBot = observer(() => {
         setConsecutiveLosses(0);
         setCurrentStake(stake);
         setTotalProfit(0);
+        setTotalWins(0);
+        setTotalLosses(0);
+        setLastResultDisplay(null);
         lastResultRef.current = null;
         activeContractIdRef.current = null;
         setIsTrading(false);
@@ -533,12 +584,14 @@ const SpeedBot = observer(() => {
             setConsecutiveLosses(0);
             setCurrentStake(stake);
             lastResultRef.current = null;
+            setLastResultDisplay('WIN');
         } else if (lastResultRef.current === 'lost') {
             setConsecutiveLosses(prev => prev + 1);
             if (martingaleEnabled) {
                 setCurrentStake(prev => Number((prev * martingaleMultiplier).toFixed(2)));
             }
             lastResultRef.current = null;
+            setLastResultDisplay('LOSS');
         }
 
         // Check Entry and Execute
@@ -563,14 +616,24 @@ const SpeedBot = observer(() => {
         stopLossConsecutiveEnabled,
     ]);
 
-    // Update total profit whenever transactions change
+    // Update total profit and counts whenever transactions change
     useEffect(() => {
+        let wins = 0;
+        let losses = 0;
         const total = transactions.reduce((acc, tx) => {
-            if (tx.status === 'won') return acc + (tx.payout - tx.stake);
-            if (tx.status === 'lost') return acc - tx.stake;
+            if (tx.status === 'won') {
+                wins++;
+                return acc + (tx.payout - tx.stake);
+            }
+            if (tx.status === 'lost') {
+                losses++;
+                return acc - tx.stake;
+            }
             return acc;
         }, 0);
         setTotalProfit(total);
+        setTotalWins(wins);
+        setTotalLosses(losses);
     }, [transactions]);
 
     const isEvenOdd = tradeType === 'DIGITEVEN' || tradeType === 'DIGITODD';
@@ -991,20 +1054,30 @@ const SpeedBot = observer(() => {
                             </div>
                         </div>
 
-                        {isAutoTrading && (
-                            <div className='bot-status' style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                <div className='metric' style={{ background: '#1e293b' }}>
-                                    <div className='label'>Current Stake</div>
-                                    <div className='value' style={{ color: '#fbbf24' }}>${currentStake}</div>
-                                </div>
-                                <div className='metric' style={{ background: '#1e293b' }}>
-                                    <div className='label'>Total Profit</div>
-                                    <div className='value' style={{ color: totalProfit >= 0 ? '#00d085' : '#ff444f' }}>
-                                        {totalProfit >= 0 ? `+$${totalProfit.toFixed(2)}` : `-$${Math.abs(totalProfit).toFixed(2)}`}
-                                    </div>
+                        <div className='bot-status' style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div className='metric' style={{ background: '#1e293b' }}>
+                                <div className='label'>Last Result</div>
+                                <div className='value' style={{
+                                    color: lastResultDisplay === 'WIN' ? '#00d085' : lastResultDisplay === 'LOSS' ? '#ff444f' : '#fff'
+                                }}>
+                                    {lastResultDisplay || '—'}
                                 </div>
                             </div>
-                        )}
+                            <div className='metric' style={{ background: '#1e293b' }}>
+                                <div className='label'>Total Profit</div>
+                                <div className='value' style={{ color: totalProfit >= 0 ? '#00d085' : '#ff444f' }}>
+                                    {totalProfit >= 0 ? `+$${totalProfit.toFixed(2)}` : `-$${Math.abs(totalProfit).toFixed(2)}`}
+                                </div>
+                            </div>
+                            <div className='metric' style={{ background: '#1e293b' }}>
+                                <div className='label'>Wins</div>
+                                <div className='value' style={{ color: '#00d085' }}>{totalWins}</div>
+                            </div>
+                            <div className='metric' style={{ background: '#1e293b' }}>
+                                <div className='label'>Losses</div>
+                                <div className='value' style={{ color: '#ff444f' }}>{totalLosses}</div>
+                            </div>
+                        </div>
 
                         {/* Transactions List */}
                         {transactions.length > 0 && (
