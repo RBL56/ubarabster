@@ -176,7 +176,8 @@ export default class AppStore {
         if (!this.dbot_store) return;
 
         blockly_store.setLoading(true);
-        await DBot.initWorkspace('/', this.dbot_store, this.api_helpers_store, ui.is_mobile, false);
+        const public_path = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1) || '/';
+        await DBot.initWorkspace(public_path, this.dbot_store, this.api_helpers_store, ui.is_mobile, false);
 
         blockly_store.setContainerSize();
         blockly_store.setLoading(false);

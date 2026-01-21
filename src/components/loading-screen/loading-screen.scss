@@ -129,6 +129,24 @@
         color: rgba(255, 255, 255, 0.8);
         letter-spacing: 1px;
     }
+
+    @media (max-width: 600px) {
+        &__content {
+            padding: 40px 20px;
+        }
+
+        &__title {
+            font-size: 22px;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+
+        &__subtitle {
+            font-size: 14px;
+            letter-spacing: 1px;
+            margin-bottom: 30px;
+        }
+    }
 }
 
 @keyframes pulse {

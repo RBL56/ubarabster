@@ -120,7 +120,7 @@ class DBot {
                 }
 
                 this.workspace = window.Blockly.inject(el_scratch_div, {
-                    media: 'assets/media/',
+                    media: `${public_path}assets/media/`,
                     renderer: 'zelos',
                     trashcan: !is_mobile,
                     zoom: { wheel: true, startScale: workspaceScale },
