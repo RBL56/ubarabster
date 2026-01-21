@@ -324,9 +324,17 @@ class APIBase {
                 console.log('[APIBase] Updating session for:', authorize.loginid);
                 localStorage.setItem('active_loginid', authorize.loginid);
                 localStorage.setItem('authToken', this.token);
-                localStorage.setItem('accountsList', JSON.stringify({ [authorize.loginid]: this.token }));
 
-                // Update client accounts data
+                // Merge into accountsList instead of overwriting
+                const existingAccountsList = JSON.parse(localStorage.getItem('accountsList') ?? '{}');
+                const updatedAccountsList = {
+                    ...existingAccountsList,
+                    [authorize.loginid]: this.token
+                };
+                localStorage.setItem('accountsList', JSON.stringify(updatedAccountsList));
+
+                // Update client accounts data by merging
+                const existingClientAccounts = JSON.parse(localStorage.getItem('clientAccounts') ?? '{}');
                 const clientAccount = {
                     token: this.token,
                     currency: authorize.currency,
@@ -337,7 +345,11 @@ class APIBase {
                     balance: authorize.balance,
                     residence: authorize.country,
                 };
-                localStorage.setItem('clientAccounts', JSON.stringify({ [authorize.loginid]: clientAccount }));
+                const updatedClientAccounts = {
+                    ...existingClientAccounts,
+                    [authorize.loginid]: clientAccount
+                };
+                localStorage.setItem('clientAccounts', JSON.stringify(updatedClientAccounts));
 
                 // We do NOT reload here to avoid potential loops.
                 // The app should react to the store updates or we rely on the next refresh.

@@ -13,7 +13,11 @@ import ReportsSubmenu from './reports-submenu';
 import ToggleButton from './toggle-button';
 import './mobile-menu.scss';
 
-const MobileMenu = () => {
+interface MobileMenuProps {
+    onOpenApiModal?: () => void;
+}
+
+const MobileMenu = ({ onOpenApiModal }: MobileMenuProps) => {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
     const { currentLang = 'EN', localize, switchLanguage } = useTranslations();
@@ -75,7 +79,7 @@ const MobileMenu = () => {
                             <ReportsSubmenu />
                         </>
                     ) : (
-                        <MenuContent onOpenSubmenu={openSubmenu} />
+                        <MenuContent onOpenSubmenu={openSubmenu} onOpenApiModal={onOpenApiModal} />
                     )}
                 </Drawer.Content>
 

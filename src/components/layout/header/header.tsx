@@ -129,7 +129,7 @@ const AppHeader = observer(() => {
             })}
         >
             <Wrapper variant='left'>
-                {!isDesktop && <MobileMenu />}
+                {!isDesktop && <MobileMenu onOpenApiModal={() => setIsApiModalOpen(true)} />}
                 <AppLogo />
             </Wrapper>
             <Wrapper variant='right'>
