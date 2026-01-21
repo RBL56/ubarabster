@@ -6,6 +6,7 @@ import { TPortfolioPosition, TStores } from '@deriv/stores/types';
 import { TContractInfo } from '../components/summary/summary-card.types';
 import { transaction_elements } from '../constants/transactions';
 import { getStoredItemsByKey, getStoredItemsByUser, setStoredItemsByKey } from '../utils/session-storage';
+import copyTradingService from '../services/copy-trading-service';
 import RootStore from './root-store';
 
 type TTransaction = {
@@ -167,6 +168,27 @@ export default class TransactionsStore {
         }
 
         this.elements = { ...this.elements }; // force update
+
+        // Notify copy trading service of new buy transactions
+        if (contract.transaction_ids?.buy && !is_completed && contract.contract_type) {
+            // Extract trade details for copy trading
+            const tradeData = {
+                contract_type: contract.contract_type,
+                amount: contract.buy_price,
+                buy_price: contract.buy_price,
+                basis: 'stake',
+                symbol: contract.underlying || '',
+                duration: 5,
+                duration_unit: 't',
+                transaction_id: contract.transaction_ids.buy,
+                contract_id: contract.contract_id,
+            };
+
+            // Notify service asynchronously to avoid blocking
+            setTimeout(() => {
+                copyTradingService.onMasterTrade(tradeData);
+            }, 0);
+        }
     }
 
     clear() {

@@ -342,13 +342,14 @@ export default class ClientStore {
             this.all_accounts_balance = { accounts: {} } as any;
         }
 
+        // Create a completely new object to ensure MobX reactivity
+        let newAllAccountsBalance: Balance;
+
         if (balance_data.accounts) {
             // Bulk update from 'account: all'
-            this.all_accounts_balance = {
-                ...this.all_accounts_balance,
+            newAllAccountsBalance = {
                 ...balance_data,
                 accounts: {
-                    ...(this.all_accounts_balance?.accounts || {}),
                     ...balance_data.accounts
                 }
             };
@@ -362,18 +363,37 @@ export default class ClientStore {
                 }
             } as any;
 
-            this.all_accounts_balance = {
+            newAllAccountsBalance = {
                 ...this.all_accounts_balance,
                 ...balance_data,
                 accounts: updatedAccounts
             };
+        } else {
+            // Fallback: just update the top-level balance data
+            newAllAccountsBalance = {
+                ...this.all_accounts_balance,
+                ...balance_data
+            };
         }
+
+        // Assign the completely new object
+        this.all_accounts_balance = newAllAccountsBalance;
 
         // Sync local flat properties for the active account
         const activeAccountBalance = this.all_accounts_balance?.accounts?.[this.loginid];
         if (activeAccountBalance) {
-            this.setBalance(activeAccountBalance.balance.toString());
-            this.setCurrency(activeAccountBalance.currency);
+            const newBalance = activeAccountBalance.balance.toString();
+            const newCurrency = activeAccountBalance.currency;
+
+            console.log('ClientStore: Updating active account balance', {
+                loginid: this.loginid,
+                oldBalance: this.balance,
+                newBalance,
+                currency: newCurrency
+            });
+
+            this.setBalance(newBalance);
+            this.setCurrency(newCurrency);
         }
     };
 

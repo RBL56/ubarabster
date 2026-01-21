@@ -1,13 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Localize } from '@deriv-com/translations';
+import { useStore } from '@/hooks/useStore';
+import copyTradingService from '@/services/copy-trading-service';
 import './copy-trading.scss';
 
 // Configuration
 const WS_URL = 'wss://ws.derivws.com/websockets/v3?app_id=120181';
-const BASE_RECONNECT_DELAY = 3000;
-const MAX_RECONNECT_DELAY = 60000;
-const MIN_DELAY_MS = 600;
 
 interface AccountState {
     socket: WebSocket | null;
@@ -31,17 +30,10 @@ interface Notification {
 }
 
 const CopyTrading = observer(() => {
-    // -- State --
-    const [master, setMaster] = useState<AccountState>({
-        socket: null,
-        status: 'inactive',
-        loginid: '—',
-        balance: '—',
-        currency: '',
-        isVirtual: false,
-        reconnectAttempts: 0,
-    });
+    const { client, dashboard } = useStore();
 
+    // -- State --
+    const [masterBalance, setMasterBalance] = useState<string>(client.balance);
     const [secondary, setSecondary] = useState<AccountState>({
         socket: null,
         status: 'inactive',
@@ -64,11 +56,7 @@ const CopyTrading = observer(() => {
     const [stakeMultiplier, setStakeMultiplier] = useState(1);
 
     // Refs for real-time logic
-    const masterSocketRef = useRef<WebSocket | null>(null);
     const secondarySocketRef = useRef<WebSocket | null>(null);
-    const clientSocketsRef = useRef<Map<string, WebSocket>>(new Map());
-    const recentTxRef = useRef<Set<string>>(new Set());
-    const lastRequestTimeRef = useRef<number>(0);
     const dailyStartBalanceRef = useRef<Record<string, number>>({});
 
     // -- Utilities --
@@ -84,62 +72,7 @@ const CopyTrading = observer(() => {
         return t.length > 12 ? t.slice(0, 6) + '••••••••••••' + t.slice(-6) : '••••••••••••';
     };
 
-    const getReconnectDelay = (attempts: number) => {
-        return Math.min(BASE_RECONNECT_DELAY * Math.pow(1.8, attempts), MAX_RECONNECT_DELAY);
-    };
-
     // -- WebSocket Handlers --
-
-    const connectMaster = useCallback(
-        (token: string) => {
-            if (masterSocketRef.current) masterSocketRef.current.close();
-
-            const ws = new WebSocket(WS_URL);
-            masterSocketRef.current = ws;
-            setMaster(prev => ({ ...prev, socket: ws, status: 'connecting' }));
-
-            ws.onopen = () => ws.send(JSON.stringify({ authorize: token }));
-
-            ws.onmessage = e => {
-                const d = JSON.parse(e.data);
-                if (d.error) {
-                    addNotification(`Master Error: ${d.error.message}`, 'error');
-                    return;
-                }
-
-                if (d.authorize) {
-                    const acc = d.authorize;
-                    setMaster(prev => ({
-                        ...prev,
-                        status: 'active',
-                        loginid: acc.loginid,
-                        balance: `${acc.balance.toFixed(2)} ${acc.currency}`,
-                        currency: acc.currency,
-                        isVirtual: !!acc.is_virtual,
-                        reconnectAttempts: 0,
-                    }));
-                    dailyStartBalanceRef.current[acc.loginid] = acc.balance;
-                    ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-                    ws.send(JSON.stringify({ transaction: 1, subscribe: 1 }));
-                    addNotification(`Master Connected: ${acc.loginid}`, 'success');
-                }
-
-                if (d.balance) {
-                    setMaster(prev => ({ ...prev, balance: `${d.balance.balance.toFixed(2)} ${d.balance.currency}` }));
-                }
-
-                if (d.transaction && d.transaction.action_type === 'buy') {
-                    handleMasterTrade(d.transaction);
-                }
-            };
-
-            ws.onclose = () => {
-                setMaster(prev => ({ ...prev, status: 'inactive', socket: null }));
-                setIsCopying(false);
-            };
-        },
-        [addNotification]
-    );
 
     const connectSecondary = useCallback(
         (token: string) => {
@@ -191,11 +124,7 @@ const CopyTrading = observer(() => {
 
     const connectClient = useCallback(
         (token: string, index: number) => {
-            const existing = clientSocketsRef.current.get(token);
-            if (existing) existing.close();
-
             const ws = new WebSocket(WS_URL);
-            clientSocketsRef.current.set(token, ws);
 
             setClients(prev => {
                 const next = [...prev];
@@ -254,121 +183,44 @@ const CopyTrading = observer(() => {
         [addNotification]
     );
 
-    // -- Trade Logic --
-
-    const proposalThenBuy = async (ws: WebSocket, account: any, masterTx: any, accountName = '') => {
-        if (!ws || ws.readyState !== 1) return false;
-
-        const multiplier = stakeMultiplier || 1;
-        let safeAmount = (masterTx.amount || masterTx.buy_price || 10) * multiplier;
-
-        const balanceVal = parseFloat(account.balance.split(' ')[0]) || 0;
-        const maxStake = (balanceVal * maxStakePercent) / 100;
-        safeAmount = Math.min(safeAmount, maxStake);
-
-        const proposalReq = {
-            proposal: 1,
-            amount: safeAmount,
-            basis: masterTx.basis || 'stake',
-            contract_type: masterTx.contract_type,
-            currency: account.currency || 'USD',
-            symbol: masterTx.symbol,
-            duration: masterTx.duration || 5,
-            duration_unit: masterTx.duration_unit || 't',
-        };
-
-        const reqId = Date.now() + Math.random();
-
-        return new Promise(resolve => {
-            const onMsg = (e: MessageEvent) => {
-                const d = JSON.parse(e.data);
-                if (d.req_id === reqId) {
-                    ws.removeEventListener('message', onMsg);
-                    if (d.error) {
-                        addNotification(
-                            `Proposal failed for ${accountName || account.loginid}: ${d.error.message}`,
-                            'error'
-                        );
-                        resolve(false);
-                    } else if (d.proposal?.id) {
-                        ws.send(
-                            JSON.stringify({ buy: d.proposal.id, price: d.proposal.ask_price || proposalReq.amount })
-                        );
-                        addNotification(`Copied to ${account.loginid} ($${safeAmount.toFixed(2)})`, 'success');
-                        resolve(true);
-                    }
-                }
-            };
-            ws.addEventListener('message', onMsg);
-            ws.send(JSON.stringify({ ...proposalReq, req_id: reqId }));
-        });
-    };
-
-    const handleMasterTrade = useCallback(
-        (tx: any) => {
-            if (!isCopying) return;
-            const txId = tx.transaction_id || tx.contract_id;
-            if (!txId || recentTxRef.current.has(txId)) return;
-
-            recentTxRef.current.add(txId);
-            setTimeout(() => recentTxRef.current.delete(txId), 300000);
-
-            // Copy to Secondary
-            if (master.isVirtual && copyToSecondary && secondarySocketRef.current?.readyState === 1) {
-                proposalThenBuy(secondarySocketRef.current, secondary, tx, 'Your Real Account');
-            }
-
-            // Copy to Clients
-            if (copyToClients) {
-                const eligibleClients = clients.filter(c => c.status === 'active' && !c.isVirtual);
-                eligibleClients.forEach((client, idx) => {
-                    setTimeout(async () => {
-                        const ws = clientSocketsRef.current.get(client.token);
-                        if (ws) {
-                            const now = Date.now();
-                            const delay = Math.max(0, lastRequestTimeRef.current + MIN_DELAY_MS - now);
-                            if (delay > 0) await new Promise(r => setTimeout(r, delay));
-                            await proposalThenBuy(ws, client, tx);
-                            lastRequestTimeRef.current = Date.now();
-                        }
-                    }, idx * 800);
-                });
-            }
-        },
-        [
-            isCopying,
-            master.isVirtual,
-            copyToSecondary,
-            copyToClients,
-            clients,
-            secondary,
-            stakeMultiplier,
-            maxStakePercent,
-            addNotification,
-        ]
-    );
-
     // -- Lifecycle --
+    // Sync master balance from client store
     useEffect(() => {
-        const savedMaster = localStorage.getItem('master_token');
+        console.log('[CopyTrading] Master balance updated:', {
+            newBalance: client.balance,
+            currency: client.currency,
+            loginid: client.loginid,
+            isVirtual: client.is_virtual,
+        });
+        setMasterBalance(client.balance);
+    }, [client.balance]);
+
+    useEffect(() => {
+        // Set notification callback for the service
+        copyTradingService.setNotificationCallback(addNotification);
+
         const savedSecondary = localStorage.getItem('secondary_token');
-        if (savedMaster) connectMaster(savedMaster);
         if (savedSecondary) connectSecondary(savedSecondary);
 
         return () => {
-            masterSocketRef.current?.close();
             secondarySocketRef.current?.close();
-            clientSocketsRef.current.forEach(ws => ws.close());
+            copyTradingService.disableCopyTrading();
         };
-    }, []);
+    }, [connectSecondary, addNotification]);
+
+    // Update service when clients or settings change
+    useEffect(() => {
+        if (isCopying) {
+            copyTradingService.updateClients(clients);
+            copyTradingService.updateSettings({
+                maxStakePercent,
+                stakeMultiplier,
+                copyToClients,
+            });
+        }
+    }, [clients, maxStakePercent, stakeMultiplier, copyToClients, isCopying]);
 
     // -- render helpers --
-    const getMasterStatusIcon = () => {
-        if (master.status === 'active') return <i className='fas fa-check-circle'></i>;
-        if (master.status === 'connecting') return <i className='fas fa-spinner fa-spin'></i>;
-        return <i className='fas fa-times-circle'></i>;
-    };
-
     const getSecondaryStatusIcon = () => {
         if (secondary.status === 'active') return <i className='fas fa-check-circle'></i>;
         if (secondary.status === 'connecting') return <i className='fas fa-spinner fa-spin'></i>;
@@ -377,127 +229,116 @@ const CopyTrading = observer(() => {
 
     return (
         <div className='copy-trading-page'>
+            {!client.is_logged_in && (
+                <div className='auth-overlay'>
+                    <div className='auth-message'>
+                        <h2><Localize i18n_default_text='Authentication Required' /></h2>
+                        <p><Localize i18n_default_text='Please log in to your Deriv account to access Copy Trading.' /></p>
+                        <button
+                            className='btn btn-secondary leave-btn'
+                            onClick={() => dashboard.setActiveTab(0)}
+                            style={{ marginTop: '20px', width: '100%' }}
+                        >
+                            <i className='fas fa-arrow-left'></i> <Localize i18n_default_text='Back to Dashboard' />
+                        </button>
+                    </div>
+                </div>
+            )}
             <div className='container'>
                 <div className='master-section'>
                     <div className='card'>
                         <div className='card-title'>
                             <i className='fas fa-crown'></i>
-                            Master Account (Signal Source)
-                            <span className={`account-type-badge ${master.isVirtual ? 'demo' : 'real'}`}>
-                                {master.isVirtual ? 'DEMO' : 'REAL'}
+                            Master Account (Your Active Trading Session)
+                            <span className={`account-type-badge ${client.is_virtual ? 'demo' : 'real'}`}>
+                                {client.is_virtual ? 'DEMO' : 'REAL'}
                             </span>
                         </div>
 
-                        <div
-                            className={`status-indicator ${master.status === 'active' ? 'active' : master.status === 'connecting' ? 'connecting' : 'inactive'}`}
-                        >
-                            {getMasterStatusIcon()}{' '}
-                            {master.status === 'active'
-                                ? 'Connected'
-                                : master.status === 'connecting'
-                                    ? 'Connecting...'
-                                    : 'Not Connected'}
+                        <div className={`status-indicator ${client.is_logged_in ? 'active' : 'inactive'}`}>
+                            {client.is_logged_in ? (
+                                <><i className='fas fa-check-circle'></i> Connected</>
+                            ) : (
+                                <><i className='fas fa-times-circle'></i> Not Connected</>
+                            )}
                         </div>
 
                         <div style={{ margin: '12px 0 0', lineHeight: 1.5 }}>
-                            <strong>LoginID:</strong> {master.loginid}
+                            <strong>LoginID:</strong> {client.loginid || '—'}
                             <br />
-                            <strong>Balance:</strong> {master.balance}
+                            <strong>Balance:</strong> {client.is_logged_in ? `${masterBalance} ${client.currency}` : '—'}
                             <br />
-                            <strong>Type:</strong> {master.isVirtual ? 'DEMO' : 'REAL'}
+                            <strong>Type:</strong> {client.is_virtual ? 'DEMO' : 'REAL'}
                         </div>
 
-                        <div style={{ marginTop: '12px' }}>
-                            <input
-                                type='text'
-                                id='masterTokenInput'
-                                placeholder='Paste Master API Token...'
-                                onKeyPress={e => {
-                                    if (e.key === 'Enter') {
-                                        const token = e.currentTarget.value.trim();
-                                        if (token) {
-                                            localStorage.setItem('master_token', token);
-                                            connectMaster(token);
-                                        }
-                                    }
-                                }}
-                            />
-                            <button
-                                className='btn btn-primary'
-                                style={{ width: '100%' }}
-                                onClick={() => {
-                                    const input = document.getElementById('masterTokenInput') as HTMLInputElement;
-                                    const token = input.value.trim();
-                                    if (token) {
-                                        localStorage.setItem('master_token', token);
-                                        connectMaster(token);
-                                    } else {
-                                        addNotification('Master token required', 'error');
-                                    }
-                                }}
-                            >
-                                <i className='fas fa-plug'></i> Connect Master Account
-                            </button>
+                        <div style={{ marginTop: '16px', padding: '12px', background: 'var(--card-light)', borderRadius: '8px', fontSize: '1.2rem', color: 'var(--grey)' }}>
+                            <i className='fas fa-info-circle'></i> All trades made anywhere in the app will be copied to client accounts when copy trading is active.
                         </div>
+
+                        {!client.is_logged_in && (
+                            <div className='login-warning' style={{ marginTop: '12px', color: 'var(--danger)', fontSize: '1.2rem' }}>
+                                <i className='fas fa-exclamation-triangle'></i> Please log in to your main account to use copy trading.
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className='card secondary-account' style={{ display: client.is_virtual ? 'block' : 'none' }}>
+                    <div className='card-title'>
+                        <i className='fas fa-exchange-alt'></i>
+                        Your Real Account (Execution Target)
                     </div>
 
-                    <div className='card secondary-account' style={{ display: master.isVirtual ? 'block' : 'none' }}>
-                        <div className='card-title'>
-                            <i className='fas fa-exchange-alt'></i>
-                            Your Real Account (Execution Target)
-                        </div>
+                    <div
+                        className={`status-indicator ${secondary.status === 'active' ? 'active' : secondary.status === 'connecting' ? 'connecting' : 'inactive'}`}
+                    >
+                        {getSecondaryStatusIcon()}{' '}
+                        {secondary.status === 'active'
+                            ? 'Connected'
+                            : secondary.status === 'connecting'
+                                ? 'Connecting...'
+                                : 'Not Connected'}
+                    </div>
 
-                        <div
-                            className={`status-indicator ${secondary.status === 'active' ? 'active' : secondary.status === 'connecting' ? 'connecting' : 'inactive'}`}
-                        >
-                            {getSecondaryStatusIcon()}{' '}
-                            {secondary.status === 'active'
-                                ? 'Connected'
-                                : secondary.status === 'connecting'
-                                    ? 'Connecting...'
-                                    : 'Not Connected'}
-                        </div>
+                    <div style={{ margin: '12px 0 0', lineHeight: 1.5 }}>
+                        <strong>LoginID:</strong> {secondary.loginid}
+                        <br />
+                        <strong>Balance:</strong> {secondary.balance}
+                        <br />
+                        <strong>Type:</strong> REAL
+                    </div>
 
-                        <div style={{ margin: '12px 0 0', lineHeight: 1.5 }}>
-                            <strong>LoginID:</strong> {secondary.loginid}
-                            <br />
-                            <strong>Balance:</strong> {secondary.balance}
-                            <br />
-                            <strong>Type:</strong> REAL
-                        </div>
-
-                        <div style={{ marginTop: '12px' }}>
-                            <input
-                                type='text'
-                                id='secondaryTokenInput'
-                                placeholder='Paste Real Account Token...'
-                                onKeyPress={e => {
-                                    if (e.key === 'Enter') {
-                                        const token = e.currentTarget.value.trim();
-                                        if (token) {
-                                            localStorage.setItem('secondary_token', token);
-                                            connectSecondary(token);
-                                        }
-                                    }
-                                }}
-                            />
-                            <button
-                                className='btn btn-warning'
-                                style={{ width: '100%' }}
-                                onClick={() => {
-                                    const input = document.getElementById('secondaryTokenInput') as HTMLInputElement;
-                                    const token = input.value.trim();
+                    <div style={{ marginTop: '12px' }}>
+                        <input
+                            type='text'
+                            id='secondaryTokenInput'
+                            placeholder='Paste Real Account Token...'
+                            onKeyPress={e => {
+                                if (e.key === 'Enter') {
+                                    const token = e.currentTarget.value.trim();
                                     if (token) {
                                         localStorage.setItem('secondary_token', token);
                                         connectSecondary(token);
-                                    } else {
-                                        addNotification('Secondary token required', 'error');
                                     }
-                                }}
-                            >
-                                <i className='fas fa-plug'></i> Connect Real Account
-                            </button>
-                        </div>
+                                }
+                            }}
+                        />
+                        <button
+                            className='btn btn-warning'
+                            style={{ width: '100%' }}
+                            onClick={() => {
+                                const input = document.getElementById('secondaryTokenInput') as HTMLInputElement;
+                                const token = input.value.trim();
+                                if (token) {
+                                    localStorage.setItem('secondary_token', token);
+                                    connectSecondary(token);
+                                } else {
+                                    addNotification('Secondary token required', 'error');
+                                }
+                            }}
+                        >
+                            <i className='fas fa-plug'></i> Connect Real Account
+                        </button>
                     </div>
                 </div>
 
@@ -507,19 +348,19 @@ const CopyTrading = observer(() => {
                     </div>
 
                     <div className='mode-description'>
-                        {master.status === 'active' ? (
+                        {client.is_logged_in ? (
                             <>
-                                <strong>{master.isVirtual ? 'Demo' : 'Real'} Master Detected:</strong>
-                                {master.isVirtual
+                                <strong>{client.is_virtual ? 'Demo' : 'Real'} Master Detected:</strong>
+                                {client.is_virtual
                                     ? ' You can copy trades from your demo account to your real account and/or client accounts.'
                                     : ' Copy trading from your real account to client accounts only.'}
                             </>
                         ) : (
-                            'Please connect your master account to see available copying options.'
+                            'Please log in to your master account to see available copying options.'
                         )}
                     </div>
 
-                    {master.status === 'active' && (
+                    {client.is_logged_in && (
                         <div className='mode-section'>
                             <div className='mode-toggle'>
                                 <input
@@ -531,7 +372,7 @@ const CopyTrading = observer(() => {
                                 <label htmlFor='copyToClientsCheckbox'>Copy to Client Accounts</label>
                             </div>
 
-                            {master.isVirtual && (
+                            {client.is_virtual && (
                                 <div className='mode-toggle'>
                                     <input
                                         type='checkbox'
@@ -549,9 +390,14 @@ const CopyTrading = observer(() => {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', margin: '20px 0' }}>
                         <button
                             className='btn btn-primary'
-                            disabled={isCopying || master.status !== 'active'}
+                            disabled={isCopying || !client.is_logged_in}
                             onClick={() => {
                                 setIsCopying(true);
+                                copyTradingService.enableCopyTrading(clients, {
+                                    maxStakePercent,
+                                    stakeMultiplier,
+                                    copyToClients,
+                                });
                                 addNotification('Copy trading engine started', 'success');
                             }}
                         >
@@ -562,6 +408,7 @@ const CopyTrading = observer(() => {
                             disabled={!isCopying}
                             onClick={() => {
                                 setIsCopying(false);
+                                copyTradingService.disableCopyTrading();
                                 addNotification('Copy trading stopped', 'info');
                             }}
                         >
@@ -704,9 +551,6 @@ const CopyTrading = observer(() => {
                                     <button
                                         className='remove-btn'
                                         onClick={() => {
-                                            const ws = clientSocketsRef.current.get(client.token);
-                                            ws?.close();
-                                            clientSocketsRef.current.delete(client.token);
                                             setClients(prev => prev.filter((_, idx) => idx !== i));
                                         }}
                                     >
