@@ -313,6 +313,19 @@ const SpeedBot = observer(() => {
 
                                     // Explicitly request balance update to ensure it reflects in the header
                                     api_base.api.send({ balance: 1, subscribe: 1 });
+
+                                    // Process Result (Martingale & Stats) - Runs for Manual & Auto
+                                    if (status === 'won') {
+                                        setConsecutiveLosses(0);
+                                        setCurrentStake(stake);
+                                        setLastResultDisplay('WIN');
+                                    } else if (status === 'lost') {
+                                        setConsecutiveLosses(prev => prev + 1);
+                                        if (martingaleEnabled) {
+                                            setCurrentStake(prev => Number((prev * martingaleMultiplier).toFixed(2)));
+                                        }
+                                        setLastResultDisplay('LOSS');
+                                    }
                                 }
                             }
                             const profit = poc.profit ? Number(poc.profit).toFixed(2) : '0.00';
@@ -467,7 +480,7 @@ const SpeedBot = observer(() => {
         }
     };
 
-    const tradeOnce = async (customStake?: number) => {
+    const tradeOnce = async (customStake?: number, customBarrier?: number) => {
         if (!api_base.api) {
             showToast('API not ready');
             return;
@@ -475,18 +488,36 @@ const SpeedBot = observer(() => {
 
         if (isTrading) return;
 
+        // Enforce Entry Condition for Manual Trades too
+        if (entryEnabled && !checkEntryCondition()) {
+            // For Specific Trades (customBarrier), user might expect forced execution?
+            // But request said "use all bot config".
+            showToast('Entry condition detection...');
+            if (!checkEntryCondition()) {
+                showToast('Entry condition not met!');
+                return;
+            }
+        }
+
         const symbol = getSymbol(volatility);
         const contract_type = getContractType();
         // Base Stake: usage depends on mode. For 'multi', we use individual stakes.
         // For others, we use customStake (if auto martanigaling) or global 'stake'.
-        const defaultStake = customStake || stake;
+        // UPDATE: If Martingale is enabled, 'Manual Trade' should probably use 'currentStake' 
+        // to continue the sequence, unless a specific customStake was passed (e.g. from specific card).
+        // If it's a "Global Trade Once", customStake is undefined.
+        const defaultStake = customStake || (martingaleEnabled ? currentStake : stake);
 
         const configs: { barrier?: number; stake: number }[] = [];
 
         // 1. Determine Trade Configurations
-        if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
+        // If customBarrier is provided, we are trading a SPECIFIC prediction (or single override)
+        if (customBarrier !== undefined) {
+            configs.push({ barrier: customBarrier, stake: defaultStake });
+        }
+        else if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
             if (predictionMode === 'multi' && predictions.length > 0) {
-                // Multi Mode: Trade ALL predictions with their specific stakes
+                // Multi Mode: Trade ALL predictions with their specific stakes (unless customBarrier set)
                 predictions.forEach(p => {
                     configs.push({ barrier: p.digit, stake: p.stake });
                 });
@@ -514,7 +545,17 @@ const SpeedBot = observer(() => {
         };
 
         setIsTrading(true);
-        const count = bulkEnabled ? bulkTrades : 1;
+
+        let count = 1;
+        if (bulkEnabled) {
+            // Restrict bulk trading to 'single' mode only for Digit Trades,
+            // OR if we are forcing a single prediction trade (customBarrier)
+            const isDigitTrade = ['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type);
+            if (!isDigitTrade || predictionMode === 'single' || customBarrier !== undefined) {
+                count = bulkTrades;
+            }
+        }
+
         const totalTrades = count * configs.length;
 
         if (!isAutoTrading) {
@@ -559,6 +600,31 @@ const SpeedBot = observer(() => {
     };
 
     // -- Auto Engine Hook --
+    // -- Result Processing (Manual & Auto) --
+    useEffect(() => {
+        // Handle Last Result Updates (Martingale & Stats)
+        if (lastResultRef.current === 'won') {
+            const profit = transactions[0]?.profit || 0; // Approx
+            setConsecutiveLosses(0);
+            setCurrentStake(stake);
+            lastResultRef.current = null;
+            setLastResultDisplay('WIN');
+        } else if (lastResultRef.current === 'lost') {
+            setConsecutiveLosses(prev => prev + 1);
+            if (martingaleEnabled) {
+                setCurrentStake(prev => Number((prev * martingaleMultiplier).toFixed(2)));
+            }
+            lastResultRef.current = null;
+            setLastResultDisplay('LOSS');
+        }
+    }, [transactions, martingaleEnabled, martingaleMultiplier, stake]); // triggering on transactions update or just check loop? 
+    // Actually, lastResultRef is mutable, so we need something to trigger the effect. 
+    // The previous code used the auto-loop dependencies. 
+    // The transaction monitor sets setIsTrading(false) and lastResultRef.
+    // Let's use `isTrading` changing to false as a trigger or just listen to `lastResultRef.current` (not possible directly).
+    // Better: Moving the logic inside the Transaction Monitor where `lastResultRef` is set.
+
+    // -- Auto Engine Hook --
     useEffect(() => {
         if (!isAutoTrading) return;
 
@@ -579,35 +645,19 @@ const SpeedBot = observer(() => {
             return;
         }
 
-        // Handle Last Result
-        if (lastResultRef.current === 'won') {
-            setConsecutiveLosses(0);
-            setCurrentStake(stake);
-            lastResultRef.current = null;
-            setLastResultDisplay('WIN');
-        } else if (lastResultRef.current === 'lost') {
-            setConsecutiveLosses(prev => prev + 1);
-            if (martingaleEnabled) {
-                setCurrentStake(prev => Number((prev * martingaleMultiplier).toFixed(2)));
-            }
-            lastResultRef.current = null;
-            setLastResultDisplay('LOSS');
-        }
-
         // Check Entry and Execute
         if (!isTrading && checkEntryCondition()) {
+            // For Auto, we use the Calculated Current Stake
             tradeOnce(currentStake);
         }
     }, [
+        digits, // Trigger on new tick/data
         lastDigit,
         isAutoTrading,
         isTrading,
         currentStake,
         consecutiveLosses,
         totalProfit,
-        stake,
-        martingaleEnabled,
-        martingaleMultiplier,
         stopLossTotal,
         stopLossTotalEnabled,
         takeProfitTotal,
@@ -926,6 +976,26 @@ const SpeedBot = observer(() => {
                                                         >
                                                             ×
                                                         </button>
+                                                        <button
+                                                            type='button'
+                                                            className='btn'
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: '8px',
+                                                                right: '8px',
+                                                                background: '#2ea3f2',
+                                                                color: '#fff',
+                                                                padding: '4px 8px',
+                                                                fontSize: '12px',
+                                                                borderRadius: '4px'
+                                                            }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                tradeOnce(pred.stake, pred.digit);
+                                                            }}
+                                                        >
+                                                            ▶
+                                                        </button>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1110,23 +1180,42 @@ const SpeedBot = observer(() => {
                                             </div>
                                             <div style={{ display: 'flex', gap: '12px' }}>
                                                 <span style={{ color: '#fff' }}>Stake: {tx.stake}</span>
-                                                <span
-                                                    style={{
-                                                        fontWeight: 'bold',
-                                                        color:
-                                                            tx.status === 'won'
-                                                                ? '#00d085'
-                                                                : tx.status === 'lost'
-                                                                    ? '#ff444f'
-                                                                    : '#fbbf24',
-                                                    }}
-                                                >
-                                                    {tx.status === 'running'
-                                                        ? 'Running...'
-                                                        : tx.status === 'won'
-                                                            ? `+${tx.profit}`
-                                                            : `-${tx.stake}`}
-                                                </span>
+                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                    <span
+                                                        style={{
+                                                            fontWeight: 'bold',
+                                                            color:
+                                                                tx.status === 'won'
+                                                                    ? '#00d085'
+                                                                    : tx.status === 'lost'
+                                                                        ? '#ff444f'
+                                                                        : '#fbbf24',
+                                                        }}
+                                                    >
+                                                        {tx.status === 'running'
+                                                            ? 'RUNNING'
+                                                            : tx.status === 'won'
+                                                                ? 'WIN'
+                                                                : 'LOSS'}
+                                                    </span>
+                                                    <span
+                                                        style={{
+                                                            fontWeight: 'bold',
+                                                            color:
+                                                                tx.status === 'won'
+                                                                    ? '#00d085'
+                                                                    : tx.status === 'lost'
+                                                                        ? '#ff444f'
+                                                                        : '#fbbf24',
+                                                        }}
+                                                    >
+                                                        {tx.status === 'running'
+                                                            ? '...'
+                                                            : tx.status === 'won'
+                                                                ? `+${tx.profit}`
+                                                                : `-${tx.stake}`}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
@@ -1135,7 +1224,7 @@ const SpeedBot = observer(() => {
                         )}
 
                         <div className='controls'>
-                            <button className='btn primary' onClick={tradeOnce}>
+                            <button className='btn primary' onClick={() => tradeOnce()}>
                                 Trade Once
                             </button>
                             <button
