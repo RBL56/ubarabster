@@ -11,8 +11,8 @@ type TAccountSwitcherWalletListProps = {
 export const AccountSwitcherWalletList = ({ wallets, closeAccountsDialog }: TAccountSwitcherWalletListProps) => {
     const sortedWallets = [...wallets].sort((a, b) => {
         // Remove commas from balance strings before converting to numbers
-        const balanceA = Number(a.dtrade_balance.toString().replace(/,/g, ''));
-        const balanceB = Number(b.dtrade_balance.toString().replace(/,/g, ''));
+        const balanceA = Number(a.dtrade_balance?.toString().replace(/,/g, '') || 0);
+        const balanceB = Number(b.dtrade_balance?.toString().replace(/,/g, '') || 0);
         return balanceB - balanceA;
     });
     return (
