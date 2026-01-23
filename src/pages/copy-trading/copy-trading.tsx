@@ -186,39 +186,40 @@ const CopyTrading = observer(() => {
     // -- Lifecycle --
     // Sync master balance from client store
     useEffect(() => {
-        console.log('[CopyTrading] Master balance updated:', {
-            newBalance: client.balance,
-            currency: client.currency,
-            loginid: client.loginid,
-            isVirtual: client.is_virtual,
-        });
         setMasterBalance(client.balance);
-    }, [client.balance]);
+    }, [client.balance, client.is_logged_in]);
 
     useEffect(() => {
         // Set notification callback for the service
         copyTradingService.setNotificationCallback(addNotification);
 
+        // Sync initial state from service status
+        const status = copyTradingService.getStatus();
+        setIsCopying(status.isActive);
+        setMaxStakePercent(status.settings.maxStakePercent);
+        setStakeMultiplier(status.settings.stakeMultiplier);
+        setCopyToClients(status.settings.copyToClients);
+
+        // Load secondary token if exists
         const savedSecondary = localStorage.getItem('secondary_token');
         if (savedSecondary) connectSecondary(savedSecondary);
 
+        // NOTE: We no longer disable copy trading on unmount so it runs in background
         return () => {
             secondarySocketRef.current?.close();
-            copyTradingService.disableCopyTrading();
+            copyTradingService.setNotificationCallback(() => { }); // Remove callback but keep service running
         };
     }, [connectSecondary, addNotification]);
 
     // Update service when clients or settings change
     useEffect(() => {
-        if (isCopying) {
-            copyTradingService.updateClients(clients);
-            copyTradingService.updateSettings({
-                maxStakePercent,
-                stakeMultiplier,
-                copyToClients,
-            });
-        }
-    }, [clients, maxStakePercent, stakeMultiplier, copyToClients, isCopying]);
+        copyTradingService.updateClients(clients);
+        copyTradingService.updateSettings({
+            maxStakePercent,
+            stakeMultiplier,
+            copyToClients,
+        });
+    }, [clients, maxStakePercent, stakeMultiplier, copyToClients]);
 
     // -- render helpers --
     const getSecondaryStatusIcon = () => {

@@ -1,4 +1,5 @@
-import { api_base } from '@/external/bot-skeleton';
+import { toast } from 'react-toastify';
+import { botNotification } from '@/components/bot-notification/bot-notification';
 
 interface ClientAccount {
     token: string;
@@ -45,13 +46,59 @@ class CopyTradingService {
     private readonly WS_URL = 'wss://ws.derivws.com/websockets/v3?app_id=120181';
     private notificationCallback: NotificationCallback | null = null;
 
-    private constructor() { }
+    private constructor() {
+        // Delay loading to ensure other stores are ready if needed for notifications
+        setTimeout(() => this.loadSettings(), 1000);
+    }
 
     static getInstance(): CopyTradingService {
         if (!CopyTradingService.instance) {
             CopyTradingService.instance = new CopyTradingService();
         }
         return CopyTradingService.instance;
+    }
+
+    private saveSettings() {
+        try {
+            const dataToSave = {
+                isActive: this.isActive,
+                clients: this.clients.map(({ token, masked, loginid, balance, currency, isVirtual }) => ({
+                    token, masked, loginid, balance, currency, isVirtual
+                })),
+                settings: this.settings,
+            };
+            localStorage.setItem('copy_trading_data', JSON.stringify(dataToSave));
+            console.log('[CopyTradingService] Settings saved to localStorage');
+        } catch (error) {
+            console.error('[CopyTradingService] Error saving settings:', error);
+        }
+    }
+
+    private loadSettings() {
+        try {
+            const savedData = localStorage.getItem('copy_trading_data');
+            if (savedData) {
+                const parsed = JSON.parse(savedData);
+                this.isActive = parsed.isActive || false;
+                this.clients = parsed.clients || [];
+                this.settings = { ...this.settings, ...parsed.settings };
+
+                console.log('[CopyTradingService] Settings loaded from localStorage', {
+                    isActive: this.isActive,
+                    clients: this.clients.length
+                });
+
+                if (this.isActive && this.clients.length > 0) {
+                    // Staggered reconnection to avoid flooding
+                    setTimeout(() => {
+                        this.connectClients();
+                        this.notify(`Copy trading resumed with ${this.clients.length} clients`, 'info');
+                    }, 2000);
+                }
+            }
+        } catch (error) {
+            console.error('[CopyTradingService] Error loading settings:', error);
+        }
     }
 
     setNotificationCallback(callback: NotificationCallback) {
@@ -62,28 +109,35 @@ class CopyTradingService {
         if (this.notificationCallback) {
             this.notificationCallback(message, type);
         }
+
+        const toast_type = type === 'info' ? toast.TYPE.DEFAULT : toast.TYPE[type.toUpperCase() as keyof typeof toast.TYPE];
+        botNotification(message, undefined, { type: toast_type as any });
     }
 
     enableCopyTrading(clients: ClientAccount[], settings: CopyTradingSettings) {
         this.isActive = true;
         this.clients = clients;
         this.settings = settings;
+        this.saveSettings();
         this.connectClients();
         console.log('[CopyTradingService] Copy trading enabled', { clients: clients.length, settings });
     }
 
     disableCopyTrading() {
         this.isActive = false;
+        this.saveSettings();
         this.disconnectClients();
         console.log('[CopyTradingService] Copy trading disabled');
     }
 
     updateSettings(settings: Partial<CopyTradingSettings>) {
         this.settings = { ...this.settings, ...settings };
+        this.saveSettings();
     }
 
     updateClients(clients: ClientAccount[]) {
         this.clients = clients;
+        this.saveSettings();
         if (this.isActive) {
             this.disconnectClients();
             this.connectClients();

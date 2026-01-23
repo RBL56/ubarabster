@@ -17,6 +17,7 @@ import {
 import ApiHelpers from './api-helpers';
 import { generateDerivApiInstance, V2GetActiveClientId, V2GetActiveToken } from './appId';
 import chart_api from './chart-api';
+import copy_trading_service from '@/services/copy-trading-service';
 
 type CurrentSubscription = {
     id: string;
@@ -212,6 +213,19 @@ class APIBase {
                 loginid: response.balance?.loginid,
             });
             setAllAccountsBalance(response.balance);
+        }
+
+        if (response.msg_type === 'transaction') {
+            const tx = response.transaction;
+            if (tx.action === 'buy') {
+                console.log('[APIBase] ⟴ Master Transaction detected, forwarding to CopyTradingService', tx);
+                copy_trading_service.onMasterTrade({
+                    contract_type: tx.contract_type,
+                    amount: tx.amount,
+                    symbol: tx.symbol,
+                    transaction_id: tx.transaction_id,
+                });
+            }
         }
     }
 
