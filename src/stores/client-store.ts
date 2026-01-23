@@ -39,6 +39,36 @@ export default class ClientStore {
     private balanceSubscription: { unsubscribe: () => void } | null = null;
 
     constructor() {
+        // Hydrate from localStorage immediately
+        const active_loginid = localStorage.getItem('active_loginid');
+        const auth_token = localStorage.getItem('authToken');
+        const client_accounts = localStorage.getItem('clientAccounts');
+        const accounts_list = localStorage.getItem('accountsList');
+
+        if (active_loginid && auth_token) {
+            this.loginid = active_loginid;
+            this.is_logged_in = true;
+
+            if (client_accounts) {
+                try {
+                    this.accounts = JSON.parse(client_accounts);
+                } catch (e) {
+                    console.error('Failed to parse clientAccounts during hydration', e);
+                }
+            }
+
+            if (accounts_list) {
+                try {
+                    this.account_list = Object.keys(JSON.parse(accounts_list)).map(loginid => ({
+                        loginid,
+                        token: JSON.parse(accounts_list)[loginid],
+                    }));
+                } catch (e) {
+                    console.error('Failed to parse accountsList during hydration', e);
+                }
+            }
+        }
+
         // Subscribe to auth data changes
         this.authDataSubscription = authData$.subscribe(authData => {
             if (authData?.upgradeable_landing_companies) {
