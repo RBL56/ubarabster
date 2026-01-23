@@ -1,4 +1,12 @@
+import martingaleXml from '@/xml/martingale.xml';
+import martingaleMaxStakeXml from '@/xml/martingale_max-stake.xml';
+import dalembertXml from '@/xml/dalembert.xml';
+import dalembertMaxStakeXml from '@/xml/dalembert_max-stake.xml';
+import reverseDalembertXml from '@/xml/reverse_dalembert.xml';
 import reverseMartingaleXml from '@/xml/reverse_martingale.xml';
+import oscarsGrindXml from '@/xml/oscars_grind.xml';
+import locofxv2megamindXml from '@/xml/LOCOFX V2 MEGAMIND.xml';
+import locospeedbotXml from '@/xml/locospeedbot.xml';
 import locoV15Xml from '@/xml/LOCO V1.5.xml';
 import locoSpeedBotEntryXml from '@/xml/LOCO SPEED BOT WITH ENTRY .xml';
 import entryPointBotOver2Xml from '@/xml/_Entry point Bot over 2.xml';
