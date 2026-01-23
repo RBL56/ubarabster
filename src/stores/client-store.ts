@@ -82,6 +82,11 @@ export default class ClientStore {
 
                 if (authData.balance !== undefined) {
                     this.setBalance(authData.balance.toString());
+                    this.setAllAccountsBalance({
+                        balance: authData.balance,
+                        currency: authData.currency ?? this.currency,
+                        loginid: authData.loginid,
+                    });
                 }
 
                 if (authData.upgradeable_landing_companies) {
@@ -334,6 +339,11 @@ export default class ClientStore {
         const currentBalance = parseFloat(this.balance) || 0;
         const newBalance = currentBalance - tradeAmount;
         this.setBalance(newBalance.toFixed(getDecimalPlaces(this.currency)));
+        this.setAllAccountsBalance({
+            balance: newBalance,
+            currency: this.currency,
+            loginid: this.loginid,
+        });
 
         const update_time = performance.now() - start_time;
 
