@@ -71,8 +71,29 @@ export default class ClientStore {
 
         // Subscribe to auth data changes
         this.authDataSubscription = authData$.subscribe(authData => {
-            if (authData?.upgradeable_landing_companies) {
-                this.setUpgradeableLandingCompanies(authData.upgradeable_landing_companies);
+            if (authData) {
+                this.setLoginId(authData.loginid);
+                this.setIsLoggedIn(true);
+                this.setAccountList(authData.account_list);
+
+                if (authData.currency) {
+                    this.setCurrency(authData.currency);
+                }
+
+                if (authData.balance !== undefined) {
+                    this.setBalance(authData.balance.toString());
+                }
+
+                if (authData.upgradeable_landing_companies) {
+                    this.setUpgradeableLandingCompanies(authData.upgradeable_landing_companies);
+                }
+
+                if (authData.country) {
+                    this.setAccountSettings({
+                        ...this.account_settings,
+                        country_code: authData.country,
+                    } as any);
+                }
             }
         });
 

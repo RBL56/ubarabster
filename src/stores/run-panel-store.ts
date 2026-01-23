@@ -194,6 +194,11 @@ export default class RunPanelStore {
             return;
         }
 
+        if (!client.is_virtual) {
+            this.showRealAccountDialog();
+            return;
+        }
+
         /**
          * Due to Apple's policy on cellular data usage in ios audioElement.play() should be initially called on
          * user action(e.g click/touch) to be downloaded, otherwise throws an error. Also it should be called
