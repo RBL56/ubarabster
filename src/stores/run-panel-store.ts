@@ -228,6 +228,9 @@ export default class RunPanelStore {
             summary_card.clear();
             this.setContractStage(contract_stages.STARTING);
             this.dbot.runBot();
+
+            // Start periodic balance refresh during active trading
+            this.startBalanceRefresh();
         });
         this.setShowBotStopMessage(false);
     };

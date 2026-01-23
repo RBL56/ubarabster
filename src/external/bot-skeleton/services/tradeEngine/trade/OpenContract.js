@@ -25,6 +25,34 @@ export default Engine =>
                         this.contractId = '';
                         clearTimeout(this.transaction_recovery_timeout);
                         this.updateTotals(contract);
+
+                        // Optimistically update balance when contract is sold
+                        // We add the sell_price (payout) back to balance (pass negative to subtract logic)
+                        const sellPrice = contract.sell_price || contract.bid_price;
+                        if (sellPrice) {
+                            const balance_update_start = performance.now();
+                            try {
+                                const DBotStore = require('../../../scratch/dbot-store').default;
+                                const { client } = DBotStore.instance || {};
+                                if (client && client.updateBalanceOnTrade) {
+                                    client.updateBalanceOnTrade(-parseFloat(sellPrice));
+
+                                    const optimistic_update_time = performance.now() - balance_update_start;
+                                    console.log(`[OpenContract] Optimistic balance update on sell in ${optimistic_update_time.toFixed(2)}ms`);
+                                }
+
+                                // Force balance refresh for accurate update - immediate, no delay
+                                if (this.forceBalanceUpdate) {
+                                    // Use Promise.resolve to ensure this runs immediately
+                                    Promise.resolve().then(() => {
+                                        this.forceBalanceUpdate();
+                                    });
+                                }
+                            } catch (e) {
+                                console.error('Optimistic balance update on sell failed', e);
+                            }
+                        }
+
                         contractStatus({
                             id: 'contract.sold',
                             data: contract.transaction_ids.sell,

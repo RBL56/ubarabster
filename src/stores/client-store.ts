@@ -1,5 +1,5 @@
 import { action, computed, makeObservable, observable } from 'mobx';
-import { ContentFlag, isEmptyObject } from '@/components/shared';
+import { ContentFlag, getDecimalPlaces, isEmptyObject } from '@/components/shared';
 import { isEuCountry, isMultipliersOnly, isOptionsBlocked } from '@/components/shared/common/utility';
 import { removeCookies } from '@/components/shared/utils/storage/storage';
 import { api_base } from '@/external/bot-skeleton';
@@ -86,6 +86,7 @@ export default class ClientStore {
             setAccountStatus: action,
             setAllAccountsBalance: action,
             setBalance: action,
+            updateBalanceOnTrade: action,
             setCurrency: action,
             setIsLoggedIn: action,
             setIsLoggingOut: action,
@@ -265,7 +266,32 @@ export default class ClientStore {
     };
 
     setBalance = (balance: string) => {
+        const start_time = performance.now();
         this.balance = balance;
+        const update_time = performance.now() - start_time;
+
+        // Log only if update takes longer than expected (> 1ms indicates potential issue)
+        if (update_time > 1) {
+            console.warn(`[ClientStore] setBalance took ${update_time.toFixed(2)}ms (expected < 1ms)`);
+        }
+    };
+
+    updateBalanceOnTrade = (tradeAmount: number) => {
+        const start_time = performance.now();
+
+        // Optimistically update balance when a trade is placed
+        const currentBalance = parseFloat(this.balance) || 0;
+        const newBalance = currentBalance - tradeAmount;
+        this.setBalance(newBalance.toFixed(getDecimalPlaces(this.currency)));
+
+        const update_time = performance.now() - start_time;
+
+        console.log(`[ClientStore] Balance updated on trade in ${update_time.toFixed(2)}ms:`, {
+            previousBalance: currentBalance,
+            tradeAmount,
+            newBalance,
+            currency: this.currency
+        });
     };
 
     setCurrency = (currency: string) => {

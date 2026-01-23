@@ -33,6 +33,31 @@ export default Engine =>
                     this.renewProposalsOnPurchase();
                 }
 
+                // Immediately update balance to reflect the trade
+                if (buy.buy_price) {
+                    const balance_update_start = performance.now();
+                    try {
+                        const DBotStore = require('../../../scratch/dbot-store').default;
+                        const { client } = DBotStore.instance || {};
+                        if (client && client.updateBalanceOnTrade) {
+                            client.updateBalanceOnTrade(parseFloat(buy.buy_price));
+
+                            const optimistic_update_time = performance.now() - balance_update_start;
+                            console.log(`[Purchase] Optimistic balance update in ${optimistic_update_time.toFixed(2)}ms`);
+                        }
+
+                        // Force balance refresh for accurate update - immediate, no delay
+                        if (this.forceBalanceUpdate) {
+                            // Use Promise.resolve to ensure this runs immediately
+                            Promise.resolve().then(() => {
+                                this.forceBalanceUpdate();
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Failed to update balance on trade:', error);
+                    }
+                }
+
                 delayIndex = 0;
                 log(LogTypes.PURCHASE, { longcode: buy.longcode, transaction_id: buy.transaction_id });
                 info({
