@@ -13,6 +13,7 @@ interface ClientAccount {
 interface CopyTradingSettings {
     maxStakePercent: number;
     stakeMultiplier: number;
+    dailyLossLimit: number;
     copyToClients: boolean;
 }
 
@@ -37,6 +38,7 @@ class CopyTradingService {
     private settings: CopyTradingSettings = {
         maxStakePercent: 5,
         stakeMultiplier: 1,
+        dailyLossLimit: 10,
         copyToClients: true,
     };
     private clientSockets = new Map<string, WebSocket>();
@@ -47,8 +49,7 @@ class CopyTradingService {
     private notificationCallback: NotificationCallback | null = null;
 
     private constructor() {
-        // Delay loading to ensure other stores are ready if needed for notifications
-        setTimeout(() => this.loadSettings(), 1000);
+        this.loadSettings();
     }
 
     static getInstance(): CopyTradingService {
@@ -145,7 +146,7 @@ class CopyTradingService {
     }
 
     private connectClients() {
-        this.clients.forEach((client, index) => {
+        this.clients.forEach((client) => {
             if (!client.token || this.clientSockets.has(client.token)) return;
 
             const ws = new WebSocket(this.WS_URL);
@@ -293,6 +294,7 @@ class CopyTradingService {
     getStatus() {
         return {
             isActive: this.isActive,
+            clients: this.clients,
             clientCount: this.clients.length,
             connectedClients: this.clientSockets.size,
             settings: this.settings,

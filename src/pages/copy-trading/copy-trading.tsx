@@ -44,16 +44,24 @@ const CopyTrading = observer(() => {
         reconnectAttempts: 0,
     });
 
-    const [clients, setClients] = useState<ClientAccount[]>([]);
-    const [isCopying, setIsCopying] = useState(false);
-    const [copyToClients, setCopyToClients] = useState(true);
+    const [clients, setClients] = useState<ClientAccount[]>(() => {
+        const status = copyTradingService.getStatus();
+        return (status.clients || []).map((c: any) => ({
+            ...c,
+            status: 'connecting',
+            socket: null,
+            reconnectAttempts: 0
+        }));
+    });
+    const [isCopying, setIsCopying] = useState(() => copyTradingService.getStatus().isActive);
+    const [copyToClients, setCopyToClients] = useState(() => copyTradingService.getStatus().settings.copyToClients);
     const [copyToSecondary, setCopyToSecondary] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     // Risk Controls
-    const [maxStakePercent, setMaxStakePercent] = useState(5);
-    const [dailyLossLimit, setDailyLossLimit] = useState(10);
-    const [stakeMultiplier, setStakeMultiplier] = useState(1);
+    const [maxStakePercent, setMaxStakePercent] = useState(() => copyTradingService.getStatus().settings.maxStakePercent);
+    const [dailyLossLimit, setDailyLossLimit] = useState(() => copyTradingService.getStatus().settings.dailyLossLimit);
+    const [stakeMultiplier, setStakeMultiplier] = useState(() => copyTradingService.getStatus().settings.stakeMultiplier);
 
     // Refs for real-time logic
     const secondarySocketRef = useRef<WebSocket | null>(null);
@@ -124,6 +132,7 @@ const CopyTrading = observer(() => {
 
     const connectClient = useCallback(
         (token: string, index: number) => {
+            if (!token) return;
             const ws = new WebSocket(WS_URL);
 
             setClients(prev => {
@@ -138,6 +147,11 @@ const CopyTrading = observer(() => {
                 const d = JSON.parse(e.data);
                 if (d.error) {
                     addNotification(`Client Error: ${d.error.message}`, 'error');
+                    setClients(prev => {
+                        const next = [...prev];
+                        if (next[index]) next[index].status = 'inactive';
+                        return next;
+                    });
                     return;
                 }
 
@@ -160,7 +174,6 @@ const CopyTrading = observer(() => {
                     });
                     dailyStartBalanceRef.current[acc.loginid] = acc.balance;
                     ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-                    addNotification(`Client Connected: ${acc.loginid}`, 'success');
                 }
 
                 if (d.balance) {
@@ -193,12 +206,12 @@ const CopyTrading = observer(() => {
         // Set notification callback for the service
         copyTradingService.setNotificationCallback(addNotification);
 
-        // Sync initial state from service status
-        const status = copyTradingService.getStatus();
-        setIsCopying(status.isActive);
-        setMaxStakePercent(status.settings.maxStakePercent);
-        setStakeMultiplier(status.settings.stakeMultiplier);
-        setCopyToClients(status.settings.copyToClients);
+        // Connect initial clients
+        clients.forEach((client, index) => {
+            setTimeout(() => {
+                connectClient(client.token, index);
+            }, index * 500);
+        });
 
         // Load secondary token if exists
         const savedSecondary = localStorage.getItem('secondary_token');
@@ -209,7 +222,7 @@ const CopyTrading = observer(() => {
             secondarySocketRef.current?.close();
             copyTradingService.setNotificationCallback(() => { }); // Remove callback but keep service running
         };
-    }, [connectSecondary, addNotification]);
+    }, [connectSecondary, connectClient, addNotification]);
 
     // Update service when clients or settings change
     useEffect(() => {
@@ -217,9 +230,10 @@ const CopyTrading = observer(() => {
         copyTradingService.updateSettings({
             maxStakePercent,
             stakeMultiplier,
+            dailyLossLimit,
             copyToClients,
         });
-    }, [clients, maxStakePercent, stakeMultiplier, copyToClients]);
+    }, [clients, maxStakePercent, stakeMultiplier, dailyLossLimit, copyToClients]);
 
     // -- render helpers --
     const getSecondaryStatusIcon = () => {
@@ -397,6 +411,7 @@ const CopyTrading = observer(() => {
                                 copyTradingService.enableCopyTrading(clients, {
                                     maxStakePercent,
                                     stakeMultiplier,
+                                    dailyLossLimit,
                                     copyToClients,
                                 });
                                 addNotification('Copy trading engine started', 'success');

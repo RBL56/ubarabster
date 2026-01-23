@@ -272,33 +272,44 @@
     }
 
     .risk-controls {
-        display: flex;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
         gap: 12px;
-        flex-wrap: wrap;
         margin-top: 16px;
         padding: 12px;
         background: rgba(255, 255, 255, 0.03);
         border-radius: 8px;
+
+        @media (max-width: 480px) {
+            grid-template-columns: 1fr;
+        }
     }
 
     .risk-input {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 8px;
 
         label {
-            font-size: 0.85rem;
+            font-size: 1.2rem;
             color: var(--grey);
+            font-weight: 500;
         }
 
         input {
-            padding: 8px 12px;
-            border: 1px solid #444;
-            background: #111;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
             color: white;
-            border-radius: 6px;
-            width: 100px;
+            border-radius: 8px;
+            width: 100%; // Fill space
             font-size: 1.4rem;
+            transition: border-color 0.2s;
+
+            &:focus {
+                border-color: var(--primary);
+                outline: none;
+            }
         }
     }
 

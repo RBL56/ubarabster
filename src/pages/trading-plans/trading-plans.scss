@@ -259,6 +259,11 @@
         margin: 0 auto;
         padding-bottom: 4rem;
 
+        @include mobile-screen {
+            padding-bottom: 2rem;
+            max-width: 100%;
+        }
+
         .calculator-container {
             width: 100%;
             background: rgb(20 26 46 / 40%);
@@ -267,6 +272,11 @@
             padding: 2.5rem;
             border: 1px solid rgb(255 255 255 / 5%);
             box-shadow: 0 20px 40px rgb(0 0 0 / 30%);
+
+            @include mobile-screen {
+                padding: 1.2rem;
+                border-radius: 12px;
+            }
         }
 
         .balance-section {
@@ -276,16 +286,30 @@
             margin-bottom: 2.5rem;
             border: 1px solid rgb(99 102 241 / 20%);
 
+            @include mobile-screen {
+                padding: 1.2rem;
+                margin-bottom: 1.5rem;
+                border-radius: 12px;
+            }
+
             .balance-display {
                 display: flex;
                 flex-direction: column;
                 margin-bottom: 2rem;
+
+                @include mobile-screen {
+                    margin-bottom: 1.2rem;
+                }
 
                 .balance-label {
                     font-size: 1.1rem;
                     color: #94a3b8;
                     font-weight: 600;
                     letter-spacing: 1px;
+
+                    @include mobile-screen {
+                        font-size: 0.9rem;
+                    }
                 }
 
                 .balance-amount {
@@ -293,6 +317,10 @@
                     font-weight: 800;
                     color: #10b981;
                     text-shadow: 0 0 20px rgb(16 185 129 / 30%);
+
+                    @include mobile-screen {
+                        font-size: 2rem;
+                    }
                 }
             }
 
@@ -300,6 +328,11 @@
                 display: flex;
                 gap: 1rem;
                 margin-bottom: 1.5rem;
+
+                @include mobile-screen {
+                    gap: 0.6rem;
+                    margin-bottom: 1rem;
+                }
 
                 input {
                     flex: 1;
@@ -309,6 +342,11 @@
                     padding: 1rem 1.5rem;
                     color: #fff;
                     font-size: 1.4rem;
+
+                    @include mobile-screen {
+                        padding: 0.8rem 1rem;
+                        font-size: 1.2rem;
+                    }
 
                     &:focus {
                         border-color: #6366f1;
@@ -327,6 +365,11 @@
                     cursor: pointer;
                     transition: all 0.2s;
 
+                    @include mobile-screen {
+                        padding: 0 1.2rem;
+                        font-size: 1rem;
+                    }
+
                     &:hover {
                         background: #4f46e5;
                         transform: translateY(-1px);
@@ -339,6 +382,10 @@
                 grid-template-columns: repeat(4, 1fr);
                 gap: 0.8rem;
 
+                @include mobile-screen {
+                    gap: 0.5rem;
+                }
+
                 .percentage-btn {
                     padding: 0.8rem;
                     border-radius: 8px;
@@ -349,6 +396,11 @@
                     font-size: 1.1rem;
                     cursor: pointer;
                     transition: all 0.2s;
+
+                    @include mobile-screen {
+                        padding: 0.6rem;
+                        font-size: 0.9rem;
+                    }
 
                     &:hover {
                         background: rgb(99 102 241 / 20%);
@@ -373,11 +425,20 @@
             border-radius: 16px;
             border: 1px solid rgb(139 92 246 / 10%);
 
+            @include mobile-screen {
+                padding: 1.5rem;
+                margin-bottom: 1.5rem;
+            }
+
             .stake-label {
                 font-size: 1.2rem;
                 color: #94a3b8;
                 font-weight: 600;
                 margin-bottom: 0.8rem;
+
+                @include mobile-screen {
+                    font-size: 1rem;
+                }
             }
 
             .stake-amount {
@@ -386,12 +447,20 @@
                 color: #fff;
                 margin-bottom: 0.5rem;
                 text-shadow: 0 2px 15px rgb(99 102 241 / 30%);
+
+                @include mobile-screen {
+                    font-size: 2.8rem;
+                }
             }
 
             .stake-info {
                 font-size: 1.3rem;
                 color: #6366f1;
                 font-weight: 500;
+
+                @include mobile-screen {
+                    font-size: 1.1rem;
+                }
             }
         }
 
@@ -400,6 +469,11 @@
             grid-template-columns: repeat(4, 1fr);
             gap: 1.2rem;
             margin-bottom: 3rem;
+
+            @include mobile-screen {
+                gap: 0.6rem;
+                margin-bottom: 1.5rem;
+            }
 
             .key {
                 padding: 1.8rem;
@@ -411,6 +485,11 @@
                 font-weight: 700;
                 cursor: pointer;
                 transition: all 0.2s;
+
+                @include mobile-screen {
+                    padding: 1.2rem;
+                    font-size: 1.4rem;
+                }
 
                 &:hover {
                     background: rgb(255 255 255 / 10%);
@@ -432,6 +511,10 @@
 
                 &.decimal {
                     font-size: 2.4rem;
+
+                    @include mobile-screen {
+                        font-size: 1.8rem;
+                    }
                 }
             }
         }
@@ -442,6 +525,11 @@
             padding: 2rem;
             margin-bottom: 2.5rem;
             border: 1px solid rgb(255 255 255 / 5%);
+
+            @include mobile-screen {
+                padding: 1.2rem;
+                margin-bottom: 1.5rem;
+            }
 
             .section-title {
                 display: flex;
@@ -506,6 +594,11 @@
                 gap: 1.5rem;
                 margin-bottom: 2rem;
 
+                @include mobile-screen {
+                    gap: 1rem;
+                    margin-bottom: 1.2rem;
+                }
+
                 .risk-group {
                     display: flex;
                     flex-direction: column;
@@ -569,6 +662,10 @@
             border-radius: 16px;
             padding: 2rem;
             border: 1px solid rgb(16 185 129 / 10%);
+
+            @include mobile-screen {
+                padding: 1.2rem;
+            }
 
             .sequence-header {
                 display: flex;
@@ -661,6 +758,10 @@
                     display: grid;
                     grid-template-columns: 1fr 1fr;
                     gap: 1.5rem;
+
+                    @include mobile-screen {
+                        gap: 1rem;
+                    }
 
                     .pl-item {
                         padding: 1.5rem;

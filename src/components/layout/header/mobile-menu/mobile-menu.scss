@@ -8,6 +8,13 @@
         display: flex;
         height: 100%;
         cursor: pointer;
+        position: relative;
+        z-index: 10;
+        pointer-events: auto;
+
+        &:active {
+            opacity: 0.7;
+        }
     }
 
     &__footer {
@@ -90,7 +97,8 @@
             }
 
             &__icons {
-                g > path,
+
+                g>path,
                 path {
                     fill: var(--text-prominent);
                 }
@@ -144,8 +152,9 @@
     &__toggle,
     &__back-btn,
     .deriv-drawer__header__close-btn {
-        button > svg > path,
-        svg > path {
+
+        button>svg>path,
+        svg>path {
             fill: var(--text-prominent);
         }
     }
