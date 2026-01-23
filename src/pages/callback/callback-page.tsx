@@ -105,7 +105,13 @@ const CallbackPage = () => {
                 // Determine the appropriate currency to use
                 const selected_currency = getSelectedCurrency(tokens, clientAccounts, state);
 
-                window.location.replace(`${window.location.origin}${window.location.pathname.replace(/\/callback$/, '')}/?account=${selected_currency}`);
+                const redirect_url = new URL(window.location.origin);
+                const target_path = window.location.pathname.replace(/\/callback$/, '');
+                // Ensure proper path handling
+                redirect_url.pathname = target_path.endsWith('/') ? target_path : `${target_path}/`;
+                redirect_url.searchParams.set('account', selected_currency);
+
+                window.location.replace(redirect_url.toString());
             }}
             renderReturnButton={() => {
                 return (

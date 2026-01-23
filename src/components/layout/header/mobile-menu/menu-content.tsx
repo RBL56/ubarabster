@@ -3,7 +3,6 @@ import { observer } from 'mobx-react-lite';
 import { useStore } from '@/hooks/useStore';
 import { LegacyChevronRight1pxIcon } from '@deriv/quill-icons/Legacy';
 import { MenuItem, Text, useDevice } from '@deriv-com/ui';
-import PlatformSwitcher from '../platform-switcher';
 import useMobileMenuConfig from './use-mobile-menu-config';
 
 type TMenuContentProps = {
@@ -53,7 +52,7 @@ const MenuContent = observer(({ onOpenSubmenu, onOpenApiModal }: TMenuContentPro
                                                 })}
                                                 disableHover
                                                 href={href}
-                                                key={label}
+                                                key={typeof label === 'string' ? label : index}
                                                 leftComponent={
                                                     <LeftComponent
                                                         className='mobile-menu__content__items--right-margin'
@@ -75,7 +74,7 @@ const MenuContent = observer(({ onOpenSubmenu, onOpenApiModal }: TMenuContentPro
                                                 'mobile-menu__content__items__item--active': isActive,
                                             })}
                                             disableHover
-                                            key={label}
+                                            key={typeof label === 'string' ? label : index}
                                             leftComponent={
                                                 <LeftComponent
                                                     className='mobile-menu__content__items--right-margin'
