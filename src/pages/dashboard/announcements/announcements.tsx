@@ -77,9 +77,18 @@ const Announcements = observer(({ is_mobile, is_tablet, handleTabChange }: TAnno
         let allUserAccounts = localStorage.getItem('client_account_details');
         let accountDate = null;
         if (allUserAccounts) {
-            allUserAccounts = JSON.parse(allUserAccounts);
-            const currentAccount = allUserAccounts?.find(account => account.loginid == loggedInAccountId);
-            accountDate = new Date(currentAccount.created_at * 1000);
+            try {
+                allUserAccounts = JSON.parse(allUserAccounts);
+                const currentAccount = Array.isArray(allUserAccounts)
+                    ? allUserAccounts.find(account => account.loginid == loggedInAccountId)
+                    : null;
+
+                if (currentAccount && currentAccount.created_at) {
+                    accountDate = new Date(currentAccount.created_at * 1000);
+                }
+            } catch (e) {
+                console.error('Error parsing client_account_details', e);
+            }
         }
 
         BOT_ANNOUNCEMENTS_LIST.map(item => {

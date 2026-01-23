@@ -303,8 +303,13 @@ class APIBase {
                 return error;
             }
 
-            console.log('[APIBase] ✓ Authorization successful!');
+            console.log('[APIBase] ✓ Authorization successful for:', authorize.loginid);
+            this.account_info = authorize;
+            this.token = token;
+            this.account_id = authorize.loginid;
+            this.is_authorized = true;
 
+            // 1. Update balances first so store is ready
             if (authorize.balance !== undefined) {
                 setAllAccountsBalance({
                     balance: authorize.balance,
@@ -319,26 +324,30 @@ class APIBase {
                 } as any);
             }
 
+            // 2. Set account list and auth data (this triggers most store updates)
+            setAccountList(authorize?.account_list || []);
+            setAuthData(authorize);
+            setIsAuthorized(true);
 
-            // Sync localStorage with authorized details if missing or mismatched
+            // 3. Sync localStorage for persistence
             const currentLoginId = localStorage.getItem('active_loginid');
-            if (authorize.loginid && currentLoginId !== authorize.loginid) {
-                console.log('[APIBase] Updating session for:', authorize.loginid);
-                localStorage.setItem('active_loginid', authorize.loginid);
-                localStorage.setItem('authToken', this.token);
+            localStorage.setItem('active_loginid', authorize.loginid);
+            localStorage.setItem('authToken', token);
+            localStorage.setItem('client.country', authorize.country);
+            localStorage.setItem('client_account_details', JSON.stringify(authorize?.account_list));
 
-                // Merge into accountsList instead of overwriting
-                const existingAccountsList = JSON.parse(localStorage.getItem('accountsList') ?? '{}');
-                const updatedAccountsList = {
-                    ...existingAccountsList,
-                    [authorize.loginid]: this.token
-                };
-                localStorage.setItem('accountsList', JSON.stringify(updatedAccountsList));
+            // Sync account management structures
+            const existingAccountsList = JSON.parse(localStorage.getItem('accountsList') ?? '{}');
+            localStorage.setItem('accountsList', JSON.stringify({
+                ...existingAccountsList,
+                [authorize.loginid]: token
+            }));
 
-                // Update client accounts data by merging
-                const existingClientAccounts = JSON.parse(localStorage.getItem('clientAccounts') ?? '{}');
-                const clientAccount = {
-                    token: this.token,
+            const existingClientAccounts = JSON.parse(localStorage.getItem('clientAccounts') ?? '{}');
+            localStorage.setItem('clientAccounts', JSON.stringify({
+                ...existingClientAccounts,
+                [authorize.loginid]: {
+                    token: token,
                     currency: authorize.currency,
                     landing_company_name: authorize.landing_company_name,
                     is_virtual: authorize.is_virtual,
@@ -346,28 +355,9 @@ class APIBase {
                     email: authorize.email,
                     balance: authorize.balance,
                     residence: authorize.country,
-                };
-                const updatedClientAccounts = {
-                    ...existingClientAccounts,
-                    [authorize.loginid]: clientAccount
-                };
-                localStorage.setItem('clientAccounts', JSON.stringify(updatedClientAccounts));
-
-                // We do NOT reload here to avoid potential loops.
-                // The app should react to the store updates or we rely on the next refresh.
-            }
-
-            console.log('[APIBase] Login ID:', authorize?.loginid);
-            console.log('[APIBase] Currency:', authorize?.currency);
-            console.log('[APIBase] Initial Balance:', authorize?.balance);
-
-            this.account_info = authorize;
-            setAccountList(authorize?.account_list || []);
-            setAuthData(authorize);
-            setIsAuthorized(true);
-            this.is_authorized = true;
-            localStorage.setItem('client_account_details', JSON.stringify(authorize?.account_list));
-            localStorage.setItem('client.country', authorize?.country);
+                    created_at: authorize.created_at, // Ensure created_at is saved
+                }
+            }));
 
             if (this.has_active_symbols) {
                 this.toggleRunButton(false);
