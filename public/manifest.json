@@ -9,7 +9,11 @@
     "orientation": "portrait-primary",
     "scope": "/",
     "lang": "en",
-    "categories": ["finance", "productivity", "business"],
+    "categories": [
+        "finance",
+        "productivity",
+        "business"
+    ],
     "offline_enabled": true,
     "icons": [
         {
@@ -105,6 +109,11 @@
     ],
     "related_applications": [],
     "prefer_related_applications": false,
-    "cache_resources": ["/", "/offline.html", "/manifest.json", "/deriv-logo.svg"],
+    "cache_resources": [
+        "/",
+        "/offline.html",
+        "/manifest.json",
+        "/images/loco-logo.jpg"
+    ],
     "offline_fallback": "/offline.html"
 }

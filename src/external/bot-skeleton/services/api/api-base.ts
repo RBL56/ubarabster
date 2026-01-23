@@ -59,6 +59,8 @@ class APIBase {
     current_auth_subscriptions: SubscriptionPromise[] = [];
     is_authorized = false;
     active_symbols_promise: Promise<void> | null = null;
+    subscriptions_ready = false;
+    is_trading_ready = false;
     common_store: CommonStore | undefined;
     landing_company: string | null = null;
     bridge_subject = new Subject<any>();
@@ -377,6 +379,18 @@ class APIBase {
             console.log('[APIBase] Setting up subscriptions...');
             await this.subscribe();
 
+            // Wait for active symbols if not already loaded
+            if (!this.has_active_symbols && this.active_symbols_promise) {
+                console.log('[APIBase] Waiting for active symbols...');
+                await this.active_symbols_promise;
+            }
+
+            // Initialize ApiHelpers if not already done
+            await this.ensureApiHelpersInitialized();
+
+            // Verify complete trading readiness
+            await this.verifyTradingReadiness();
+
             // Explicitly request balance update
             console.log('[APIBase] Requesting balance update...');
         } catch (e: any) {
@@ -394,10 +408,96 @@ class APIBase {
         }
     }
 
+    async verifyTradingReadiness() {
+        console.log('[APIBase] Verifying trading readiness...');
+
+        const checks = {
+            authorized: this.is_authorized,
+            activeSymbols: this.has_active_symbols,
+            subscriptionsActive: this.subscriptions_ready,
+            apiConnected: this.api?.connection?.readyState === 1
+        };
+
+        console.log('[APIBase] Readiness checks:', checks);
+
+        const allReady = Object.values(checks).every(check => check === true);
+
+        if (allReady) {
+            this.is_trading_ready = true;
+            console.log('%c[APIBase] ✓ Trading is READY!', 'color: #4caf50; font-weight: bold; font-size: 14px;');
+            globalObserver.emit('TradingReady', { ready: true });
+        } else {
+            this.is_trading_ready = false;
+            const failedChecks = Object.entries(checks)
+                .filter(([_, value]) => !value)
+                .map(([key]) => key);
+            console.warn('[APIBase] Trading NOT ready. Failed checks:', failedChecks);
+        }
+
+        return this.is_trading_ready;
+    }
+
     async getSelfExclusion() {
         if (!this.api || !this.is_authorized) return;
         await this.api.getSelfExclusion();
         // TODO: fix self exclusion
+    }
+
+    async ensureApiHelpersInitialized() {
+        console.log('[APIBase] Ensuring ApiHelpers is initialized...');
+
+        // Dynamically import ApiHelpers to avoid circular dependency
+        const { default: ApiHelpers } = await import('./api-helpers');
+
+        // Check if ApiHelpers is already set
+        if (ApiHelpers?.instance) {
+            console.log('[APIBase] ApiHelpers already initialized');
+
+            // Retrieve active symbols to populate the instance
+            if (ApiHelpers.instance.active_symbols) {
+                try {
+                    await ApiHelpers.instance.active_symbols.retrieveActiveSymbols(true);
+                    console.log('[APIBase] ✓ Active symbols retrieved in ApiHelpers');
+
+                    // Trigger block refresh if Blockly workspace exists
+                    this.refreshMarketBlocks();
+                } catch (error) {
+                    console.error('[APIBase] Failed to retrieve active symbols:', error);
+                }
+            }
+        } else {
+            console.warn('[APIBase] ApiHelpers not initialized yet - will be set by app-store');
+        }
+    }
+
+    refreshMarketBlocks() {
+        // Refresh all trade_definition_market blocks to populate dropdowns
+        if (typeof window !== 'undefined' && window.Blockly?.derivWorkspace) {
+            console.log('[APIBase] Refreshing market blocks...');
+
+            try {
+                const market_blocks = window.Blockly.derivWorkspace
+                    .getAllBlocks()
+                    .filter((block: any) => block.type === 'trade_definition_market');
+
+                if (market_blocks.length > 0) {
+                    // Import runIrreversibleEvents dynamically
+                    import('../../utils/observer').then(({ runIrreversibleEvents }) => {
+                        market_blocks.forEach((block: any) => {
+                            runIrreversibleEvents(() => {
+                                const fake_create_event = new window.Blockly.Events.BlockCreate(block);
+                                window.Blockly.Events.fire(fake_create_event);
+                            });
+                        });
+                        console.log(`[APIBase] ✓ Refreshed ${market_blocks.length} market block(s)`);
+                    });
+                } else {
+                    console.log('[APIBase] No market blocks to refresh');
+                }
+            } catch (error) {
+                console.error('[APIBase] Error refreshing market blocks:', error);
+            }
+        }
     }
 
     async subscribe() {
@@ -421,20 +521,37 @@ class APIBase {
 
         const streamsToSubscribe = ['balance', 'transaction', 'proposal_open_contract'];
 
-        await Promise.all(streamsToSubscribe.map(subscribeToStream));
+        try {
+            await Promise.all(streamsToSubscribe.map(subscribeToStream));
+            this.subscriptions_ready = true;
+            console.log('[APIBase] ✓ All subscriptions active');
+        } catch (error) {
+            this.subscriptions_ready = false;
+            console.error('[APIBase] Subscription setup failed:', error);
+            throw error;
+        }
     }
 
     getActiveSymbols = async () => {
         await doUntilDone(() => this.api?.send({ active_symbols: 'brief' }), [], this).then(
             ({ active_symbols = [], error = {} }) => {
                 const pip_sizes = {};
-                if (active_symbols.length) this.has_active_symbols = true;
+                if (active_symbols.length) {
+                    this.has_active_symbols = true;
+                    console.log('[APIBase] ✓ Active symbols loaded:', active_symbols.length);
+                }
                 active_symbols.forEach(({ symbol, pip }: { symbol: string; pip: string }) => {
                     (pip_sizes as Record<string, number>)[symbol] = +(+pip).toExponential().substring(3);
                 });
                 this.pip_sizes = pip_sizes as Record<string, number>;
                 this.toggleRunButton(false);
                 this.active_symbols = active_symbols;
+
+                // Check readiness after symbols load
+                if (this.is_authorized && this.subscriptions_ready) {
+                    this.verifyTradingReadiness();
+                }
+
                 return active_symbols || error;
             }
         );
@@ -464,6 +581,20 @@ class APIBase {
         global_timeouts.forEach((_: unknown, i: number) => {
             clearTimeout(i);
         });
+    }
+
+    isTradingReady() {
+        return this.is_trading_ready;
+    }
+
+    getTradingReadinessStatus() {
+        return {
+            is_trading_ready: this.is_trading_ready,
+            is_authorized: this.is_authorized,
+            has_active_symbols: this.has_active_symbols,
+            subscriptions_ready: this.subscriptions_ready,
+            api_connected: this.api?.connection?.readyState === 1
+        };
     }
 }
 

@@ -3,7 +3,7 @@ const CACHE_NAME = 'deriv-bot-v1';
 const OFFLINE_URL = '/offline.html';
 
 // Files to cache immediately on install
-const PRECACHE_URLS = ['/', '/index.html', '/offline.html', '/manifest.json', '/deriv-logo.svg'];
+const PRECACHE_URLS = ['/', '/index.html', '/offline.html', '/manifest.json', '/images/loco-logo.jpg'];
 
 console.log('[SW] Service worker script loaded');
 

@@ -265,12 +265,15 @@ export default class AppStore {
             () => this.root_store.common?.is_socket_opened,
             is_socket_opened => {
                 if (!is_socket_opened) return;
+
                 this.api_helpers_store = {
                     server_time: this.root_store.common.server_time,
                     ws: api_base.api,
                 };
 
+                // Initialize ApiHelpers immediately when socket opens
                 if (!ApiHelpers?.instance) {
+                    console.log('[AppStore] Initializing ApiHelpers on socket open');
                     ApiHelpers.setInstance(this.api_helpers_store);
                 }
 
@@ -281,17 +284,20 @@ export default class AppStore {
 
                 if (ApiHelpers?.instance && active_symbols && contracts_for) {
                     if (window.Blockly?.derivWorkspace) {
+                        console.log('[AppStore] Retrieving active symbols and refreshing blocks');
                         active_symbols?.retrieveActiveSymbols(true).then(() => {
                             contracts_for.disposeCache();
-                            window.Blockly?.derivWorkspace
+                            const market_blocks = window.Blockly?.derivWorkspace
                                 .getAllBlocks()
-                                .filter(block => block.type === 'trade_definition_market')
-                                .forEach(block => {
-                                    runIrreversibleEvents(() => {
-                                        const fake_create_event = new window.Blockly.Events.BlockCreate(block);
-                                        window.Blockly.Events.fire(fake_create_event);
-                                    });
+                                .filter(block => block.type === 'trade_definition_market');
+
+                            market_blocks.forEach(block => {
+                                runIrreversibleEvents(() => {
+                                    const fake_create_event = new window.Blockly.Events.BlockCreate(block);
+                                    window.Blockly.Events.fire(fake_create_event);
                                 });
+                            });
+                            console.log(`[AppStore] ✓ Refreshed ${market_blocks.length} market block(s)`);
                         });
                     }
                     DBot.initializeInterpreter();
