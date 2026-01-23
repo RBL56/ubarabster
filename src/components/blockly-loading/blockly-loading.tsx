@@ -10,8 +10,20 @@ const BlocklyLoading = observer(() => {
         <>
             {is_loading && (
                 <div className='bot__loading' data-testid='blockly-loader'>
+                    <img
+                        src="/images/loco-logo.jpg"
+                        alt="LOCO THE TRADER"
+                        style={{
+                            width: '80px',
+                            height: '80px',
+                            borderRadius: '12px',
+                            marginBottom: '24px',
+                            objectFit: 'cover',
+                            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+                        }}
+                    />
                     <Loader />
-                    <div>Loading Blockly...</div>
+                    <div style={{ marginTop: '16px', color: 'white', fontSize: '1.4rem' }}>Loading Blockly...</div>
                 </div>
             )}
         </>

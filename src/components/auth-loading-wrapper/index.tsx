@@ -1,7 +1,7 @@
 import React from 'react';
 import { useOauth2 } from '@/hooks/auth/useOauth2';
 import useTMB from '@/hooks/useTMB';
-import { Loader } from '@deriv-com/ui';
+import LoadingScreen from '@/components/loading-screen/loading-screen';
 
 type AuthLoadingWrapperProps = {
     children: React.ReactNode;
@@ -25,7 +25,7 @@ const AuthLoadingWrapper = ({ children }: AuthLoadingWrapperProps) => {
     }, [isSingleLoggingIn, is_tmb_enabled]);
 
     if (isSingleLoggingIn && !is_tmb_enabled && !forceComplete) {
-        return <Loader isFullScreen />;
+        return <LoadingScreen message="Signing in..." />;
     }
 
     return <>{children}</>;

@@ -48,6 +48,18 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
                 <img src="/images/loco-logo.jpg" alt="Background Logo" className="loading-screen__bg-logo" />
             </div>
             <div className="loading-screen__content">
+                <img
+                    src="/images/loco-logo.jpg"
+                    alt="LOCO THE TRADER"
+                    style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '12px',
+                        marginBottom: '24px',
+                        objectFit: 'cover',
+                        boxShadow: '0 8px 16px rgba(0, 0, 0, 0.3)'
+                    }}
+                />
                 <h1 className="loading-screen__title">LOCO THE TRADER</h1>
                 <p className="loading-screen__subtitle">Welcome to Loco the Trader</p>
                 <div className="loading-screen__status-container">

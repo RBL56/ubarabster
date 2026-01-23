@@ -8,5 +8,9 @@
         right: 0;
         background-color: var(--overlay-outside-dialog);
         pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
     }
 }
