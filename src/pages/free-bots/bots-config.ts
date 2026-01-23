@@ -1,13 +1,7 @@
-// Import XML files from the xml directory
-import dalembertXml from '@/xml/dalembert.xml';
-import dalembertMaxStakeXml from '@/xml/dalembert_max-stake.xml';
-import locofxv2megamindXml from '@/xml/LOCOFX V2 MEGAMIND.xml';
-import locospeedbotXml from '@/xml/locospeedbot.xml';
-import martingaleXml from '@/xml/martingale.xml';
-import martingaleMaxStakeXml from '@/xml/martingale_max-stake.xml';
-import oscarsGrindXml from '@/xml/oscars_grind.xml';
-import reverseDalembertXml from '@/xml/reverse_dalembert.xml';
 import reverseMartingaleXml from '@/xml/reverse_martingale.xml';
+import locoV15Xml from '@/xml/LOCO V1.5.xml';
+import locoSpeedBotEntryXml from '@/xml/LOCO SPEED BOT WITH ENTRY .xml';
+import entryPointBotOver2Xml from '@/xml/_Entry point Bot over 2.xml';
 
 export type TBotConfig = {
     id: string;
@@ -81,12 +75,25 @@ export const FREE_BOTS: TBotConfig[] = [
         xml: locospeedbotXml,
         category: 'Progressive',
     },
-
     {
-        id: 'locospeedbot',
-        name: 'LOCOSPEEDBOT',
-        description: 'Advanced automated trading strategy',
-        xml: locospeedbotXml,
+        id: 'loco_v1_5',
+        name: 'LOCO V1.5',
+        description: 'Updated LOCO strategy for better performance',
+        xml: locoV15Xml,
+        category: 'Progressive',
+    },
+    {
+        id: 'loco_speed_bot_entry',
+        name: 'LOCO SPEED BOT WITH ENTRY',
+        description: 'Fast trading bot with specific entry points',
+        xml: locoSpeedBotEntryXml,
+        category: 'Progressive',
+    },
+    {
+        id: 'entry_point_bot_over_2',
+        name: 'Entry point Bot over 2',
+        description: 'Strategy focused on over 2 predictions',
+        xml: entryPointBotOver2Xml,
         category: 'Progressive',
     },
 ];
