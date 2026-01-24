@@ -32,3 +32,26 @@
     touch-action: none;
     overflow: hidden;
 }
+
+/* Blockly Input Overrides for Purple Theme */
+.blocklyEditableText {
+    &>rect {
+        fill: #000000 !important;
+        rx: 15px; // Rounded corners for pill shape
+        ry: 15px;
+        stroke: none;
+        height: 30px !important;
+        y: 0 !important;
+    }
+
+    &>text {
+        fill: #ffffff !important;
+        font-family: 'Inter', sans-serif; // Assuming Inter is available, strictly matching screenshot
+        font-weight: bold;
+        transform: translate(0, 2px); // Slight adjustment for centering
+    }
+}
+
+.blocklyDropdownText {
+    fill: #ffffff !important;
+}

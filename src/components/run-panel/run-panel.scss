@@ -140,6 +140,16 @@
                 text-overflow: ellipsis;
                 padding: 0 0.8rem;
             }
+
+            &__active {
+                background: linear-gradient(90deg, #9D00FF 0%, #BF00FF 100%) !important;
+                color: #ffffff !important;
+                border-bottom: none !important;
+            }
+
+            &__active-line {
+                display: none !important;
+            }
         }
     }
 
