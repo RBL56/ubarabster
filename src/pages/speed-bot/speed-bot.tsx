@@ -464,66 +464,98 @@ const SpeedBot = observer(() => {
                 const poc = response.proposal_open_contract;
                 const contractId = String(poc.contract_id);
 
-                // Update transaction in list if it exists
+                // Find existing transaction or check if we should create one (if it's an active contract we just bought)
+                const isActive = activeContractIdsRef.current.has(contractId);
+
                 setTransactions(prev => {
-                    const exists = prev.some(tx => String(tx.id) === contractId);
-                    if (!exists && !activeContractIdsRef.current.has(contractId)) return prev;
+                    const existingIndex = prev.findIndex(tx => String(tx.id) === contractId);
 
-                    return prev.map(tx => {
-                        if (String(tx.id) === contractId) {
-                            let status: Transaction['status'] = tx.status;
+                    if (existingIndex === -1) {
+                        // If it's not in the list but it is an active contract, it might be a race condition
+                        // (POC arrived before executeTrade's setTransactions finished)
+                        if (isActive) {
+                            const newTx: Transaction = {
+                                id: poc.contract_id,
+                                ref: poc.transaction_id || poc.id,
+                                contract_type: poc.contract_type,
+                                stake: poc.buy_price || 0,
+                                payout: poc.payout || 0,
+                                profit: poc.profit || '0.00',
+                                status: (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' :
+                                    (poc.status === 'lost' || Number(poc.profit) < 0) ? 'lost' : 'running',
+                                timestamp: Date.now(),
+                            };
 
-                            // Check for completion
+                            // Process completion if this is the final message
                             if (poc.is_sold || poc.status === 'won' || poc.status === 'lost' || poc.status === 'sold') {
-                                status = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' : 'lost';
-
-                                // If this was an active contract we were tracking, finalize it
-                                if (activeContractIdsRef.current.has(contractId)) {
-                                    lastResultRef.current = status;
-                                    activeContractIdsRef.current.delete(contractId);
-
-                                    if (activeContractIdsRef.current.size === 0) {
-                                        setIsTrading(false);
-                                    }
-
-                                    if (!isAutoTradingRef.current) {
-                                        showToast(`Trade ${status.toUpperCase()}! Profit: ${poc.profit}`);
-                                        setLastResultDisplay(status === 'won' ? 'WIN' : 'LOSS');
-                                    }
-
-                                    // Refresh balance
-                                    api_base.api.send({ balance: 1, subscribe: 1 });
-
-                                    // Process stats
-                                    if (status === 'won') {
-                                        setConsecutiveLosses(0);
-                                        setCurrentStake(stakeRef.current);
-                                        setLastResultDisplay('WIN');
-                                    } else if (status === 'lost') {
-                                        setConsecutiveLosses(prev => prev + 1);
-                                        if (martingaleEnabledRef.current) {
-                                            setCurrentStake(prev =>
-                                                Number((prev * martingaleMultiplierRef.current).toFixed(2))
-                                            );
-                                        }
-                                        setLastResultDisplay('LOSS');
-                                    }
-                                }
-                            } else if (poc.status === 'open' || !poc.is_sold) {
-                                status = 'running';
+                                handleTradeCompletion(poc, newTx.status);
                             }
 
-                            const profit = poc.profit !== undefined ? Number(poc.profit).toFixed(2) :
-                                (poc.bid_price && poc.buy_price ? Number(poc.bid_price - poc.buy_price).toFixed(2) : tx.profit);
-
-                            // Sync with main app
-                            botObserver.emit('bot.contract', poc);
-
-                            return { ...tx, status, profit };
+                            return [newTx, ...prev];
                         }
-                        return tx;
-                    });
+                        return prev;
+                    }
+
+                    const tx = prev[existingIndex];
+                    let status: Transaction['status'] = tx.status;
+
+                    // Check for completion
+                    if (poc.is_sold || poc.status === 'won' || poc.status === 'lost' || poc.status === 'sold') {
+                        status = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' : 'lost';
+
+                        // If this was an active contract we were tracking, finalize it
+                        if (isActive) {
+                            handleTradeCompletion(poc, status);
+                        }
+                    } else if (poc.status === 'open' || !poc.is_sold) {
+                        status = 'running';
+                    }
+
+                    const profit = poc.profit !== undefined ? Number(poc.profit).toFixed(2) :
+                        (poc.bid_price && poc.buy_price ? Number(poc.bid_price - poc.buy_price).toFixed(2) : tx.profit);
+
+                    // Sync with main app
+                    botObserver.emit('bot.contract', poc);
+
+                    const updatedTx = { ...tx, status, profit };
+                    const next = [...prev];
+                    next[existingIndex] = updatedTx;
+                    return next;
                 });
+            }
+        };
+
+        const handleTradeCompletion = (poc: any, status: Transaction['status']) => {
+            const contractId = String(poc.contract_id);
+            if (!activeContractIdsRef.current.has(contractId)) return;
+
+            lastResultRef.current = status;
+            activeContractIdsRef.current.delete(contractId);
+
+            if (activeContractIdsRef.current.size === 0) {
+                setIsTrading(false);
+            }
+
+            if (!isAutoTradingRef.current) {
+                showToast(`Trade ${status.toUpperCase()}! Profit: ${poc.profit}`);
+            }
+
+            // Refresh balance
+            api_base.api.send({ balance: 1, subscribe: 1 });
+
+            // Process stats
+            if (status === 'won') {
+                setConsecutiveLosses(0);
+                setCurrentStake(stakeRef.current);
+                setLastResultDisplay('WIN');
+            } else if (status === 'lost') {
+                setConsecutiveLosses(prev => prev + 1);
+                if (martingaleEnabledRef.current) {
+                    setCurrentStake(prev =>
+                        Number((prev * martingaleMultiplierRef.current).toFixed(2))
+                    );
+                }
+                setLastResultDisplay('LOSS');
             }
         };
 
@@ -628,17 +660,22 @@ const SpeedBot = observer(() => {
                 // 2. Buy
                 const buyRes: any = await api_base.api.send({ buy: id, price: Number(propRes.proposal.ask_price) });
                 if (buyRes.buy) {
-                    const newTx: Transaction = {
-                        id: buyRes.buy.contract_id,
-                        ref: buyRes.buy.transaction_id,
-                        contract_type: contract_type,
-                        stake: tradeStake,
-                        payout: propRes.proposal.payout,
-                        profit: '0.00',
-                        status: 'running',
-                        timestamp: Date.now(),
-                    };
-                    setTransactions(prev => [newTx, ...prev]);
+                    setTransactions(prev => {
+                        // Check if handleMessage already added this transaction due to race condition
+                        if (prev.some(tx => String(tx.id) === String(buyRes.buy.contract_id))) return prev;
+
+                        const newTx: Transaction = {
+                            id: buyRes.buy.contract_id,
+                            ref: buyRes.buy.transaction_id,
+                            contract_type: contract_type,
+                            stake: tradeStake,
+                            payout: propRes.proposal.payout,
+                            profit: '0.00',
+                            status: 'running',
+                            timestamp: Date.now(),
+                        };
+                        return [newTx, ...prev];
+                    });
                     activeContractIdsRef.current.add(String(buyRes.buy.contract_id));
 
                     // Emit events
@@ -736,6 +773,7 @@ const SpeedBot = observer(() => {
         };
 
         setIsTrading(true);
+        setIsTradingRef.current = true;
 
         let count = 1;
         if (bulkEnabled) {
@@ -763,7 +801,12 @@ const SpeedBot = observer(() => {
         }
 
         await Promise.all(promises);
-        setIsTrading(false);
+
+        // Final check: if no active contracts left, ensure isTrading is false
+        if (activeContractIdsRef.current.size === 0) {
+            setIsTrading(false);
+            setIsTradingRef.current = false;
+        }
     };
 
     const startAuto = () => {
