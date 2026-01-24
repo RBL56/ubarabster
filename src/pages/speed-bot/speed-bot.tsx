@@ -16,6 +16,8 @@ type Transaction = {
     profit: string;
     status: 'pending' | 'won' | 'lost' | 'running';
     timestamp: number;
+    barrier?: number | string;
+    exit_digit?: number;
 };
 
 const SpeedBot = observer(() => {
@@ -118,6 +120,51 @@ const SpeedBot = observer(() => {
     const { connectionStatus } = useApiBase();
     const { client, run_panel, summary_card, transactions: transactionsStore } = useStore();
 
+    const showToast = useCallback((msg: string) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(null), 2200);
+    }, []);
+
+    const handleTradeCompletion = useCallback((poc: any, status: Transaction['status']) => {
+        const contractId = String(poc.contract_id);
+        if (!activeContractIdsRef.current.has(contractId)) return;
+
+        lastResultRef.current = status;
+        activeContractIdsRef.current.delete(contractId);
+
+        if (activeContractIdsRef.current.size === 0) {
+            setIsTrading(false);
+            setIsTradingRef.current = false;
+        }
+
+        const profitStr = poc.profit !== undefined ? Number(poc.profit).toFixed(2) : '0.00';
+        const exitDigit = status === 'won' || status === 'lost' ? poc.exit_tick_display_value?.slice(-1) : null;
+
+        if (!isAutoTradingRef.current) {
+            showToast(`Trade ${status.toUpperCase()}! ${exitDigit ? `Digit: ${exitDigit}` : ''} Profit: ${profitStr}`);
+        }
+
+        // Refresh balance
+        if (api_base.api) {
+            api_base.api.send({ balance: 1, subscribe: 1 });
+        }
+
+        // Process stats
+        if (status === 'won') {
+            setConsecutiveLosses(0);
+            setCurrentStake(stakeRef.current);
+            setLastResultDisplay('WIN');
+        } else if (status === 'lost') {
+            setConsecutiveLosses(prev => prev + 1);
+            if (martingaleEnabledRef.current) {
+                setCurrentStake(prev =>
+                    Number((prev * martingaleMultiplierRef.current).toFixed(2))
+                );
+            }
+            setLastResultDisplay('LOSS');
+        }
+    }, [showToast]);
+
     // -- Helpers --
     const getSymbol = (vol: string) => {
         const map: Record<string, string> = {
@@ -219,13 +266,13 @@ const SpeedBot = observer(() => {
 
         const counts = Array(10).fill(0);
         digitHistoryRef.current.forEach(d => counts[d]++);
-        const max = Math.max(...counts);
+        const maxVal = Math.max(...counts);
 
         counts.forEach((count, d) => {
             const cell = ldpCellsRef.current[d];
             if (cell) {
                 // 1. Color
-                const intensity = max > 0 ? count / max : 0;
+                const intensity = maxVal > 0 ? count / maxVal : 0;
                 const hue = 120 - intensity * 100 * 1.2;
                 const bgColor = `hsl(${hue}, 75%, ${35 + intensity * 0.3 * 100}%)`;
                 cell.style.backgroundColor = bgColor;
@@ -350,16 +397,13 @@ const SpeedBot = observer(() => {
                     // Populate buffer without rendering yet? Or render everything
 
                     res.history.prices.forEach((price: number) => {
-                        const { digit, color } = processTick(price, precision);
+                        const { digit } = processTick(price, precision);
                         historicalDigits.push(digit);
 
                         // Populate local buffer only for last 40
                         // Since for loop is old->new, we can just push to a temp array then slice
                     });
 
-                    // Build buffer for UI
-                    const recentPrices = res.history.prices.slice(-40).reverse(); // Newest first for UI
-                    const buffer: { value: number; color: string }[] = [];
 
                     // We want newest first in the buffer for display
                     // The loop above gave us historical order
@@ -463,17 +507,18 @@ const SpeedBot = observer(() => {
             if (response.proposal_open_contract) {
                 const poc = response.proposal_open_contract;
                 const contractId = String(poc.contract_id);
-
-                // Find existing transaction or check if we should create one (if it's an active contract we just bought)
                 const isActive = activeContractIdsRef.current.has(contractId);
+
+                let statusToProcess: Transaction['status'] | null = null;
 
                 setTransactions(prev => {
                     const existingIndex = prev.findIndex(tx => String(tx.id) === contractId);
 
                     if (existingIndex === -1) {
-                        // If it's not in the list but it is an active contract, it might be a race condition
-                        // (POC arrived before executeTrade's setTransactions finished)
                         if (isActive) {
+                            const status: Transaction['status'] = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' :
+                                (poc.status === 'lost' || Number(poc.profit) < 0) ? 'lost' : 'running';
+
                             const newTx: Transaction = {
                                 id: poc.contract_id,
                                 ref: poc.transaction_id || poc.id,
@@ -481,14 +526,12 @@ const SpeedBot = observer(() => {
                                 stake: poc.buy_price || 0,
                                 payout: poc.payout || 0,
                                 profit: poc.profit || '0.00',
-                                status: (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' :
-                                    (poc.status === 'lost' || Number(poc.profit) < 0) ? 'lost' : 'running',
+                                status,
                                 timestamp: Date.now(),
                             };
 
-                            // Process completion if this is the final message
                             if (poc.is_sold || poc.status === 'won' || poc.status === 'lost' || poc.status === 'sold') {
-                                handleTradeCompletion(poc, newTx.status);
+                                statusToProcess = status;
                             }
 
                             return [newTx, ...prev];
@@ -499,13 +542,10 @@ const SpeedBot = observer(() => {
                     const tx = prev[existingIndex];
                     let status: Transaction['status'] = tx.status;
 
-                    // Check for completion
                     if (poc.is_sold || poc.status === 'won' || poc.status === 'lost' || poc.status === 'sold') {
                         status = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' : 'lost';
-
-                        // If this was an active contract we were tracking, finalize it
                         if (isActive) {
-                            handleTradeCompletion(poc, status);
+                            statusToProcess = status;
                         }
                     } else if (poc.status === 'open' || !poc.is_sold) {
                         status = 'running';
@@ -514,48 +554,20 @@ const SpeedBot = observer(() => {
                     const profit = poc.profit !== undefined ? Number(poc.profit).toFixed(2) :
                         (poc.bid_price && poc.buy_price ? Number(poc.bid_price - poc.buy_price).toFixed(2) : tx.profit);
 
-                    // Sync with main app
-                    botObserver.emit('bot.contract', poc);
+                    const exit_digit = (poc.exit_tick_display_value) ? parseInt(poc.exit_tick_display_value.slice(-1), 10) : tx.exit_digit;
 
-                    const updatedTx = { ...tx, status, profit };
+                    const updatedTx = { ...tx, status, profit, exit_digit };
                     const next = [...prev];
                     next[existingIndex] = updatedTx;
                     return next;
                 });
-            }
-        };
 
-        const handleTradeCompletion = (poc: any, status: Transaction['status']) => {
-            const contractId = String(poc.contract_id);
-            if (!activeContractIdsRef.current.has(contractId)) return;
-
-            lastResultRef.current = status;
-            activeContractIdsRef.current.delete(contractId);
-
-            if (activeContractIdsRef.current.size === 0) {
-                setIsTrading(false);
-            }
-
-            if (!isAutoTradingRef.current) {
-                showToast(`Trade ${status.toUpperCase()}! Profit: ${poc.profit}`);
-            }
-
-            // Refresh balance
-            api_base.api.send({ balance: 1, subscribe: 1 });
-
-            // Process stats
-            if (status === 'won') {
-                setConsecutiveLosses(0);
-                setCurrentStake(stakeRef.current);
-                setLastResultDisplay('WIN');
-            } else if (status === 'lost') {
-                setConsecutiveLosses(prev => prev + 1);
-                if (martingaleEnabledRef.current) {
-                    setCurrentStake(prev =>
-                        Number((prev * martingaleMultiplierRef.current).toFixed(2))
-                    );
+                if (statusToProcess) {
+                    handleTradeCompletion(poc, statusToProcess);
                 }
-                setLastResultDisplay('LOSS');
+
+                // Sync with main app
+                botObserver.emit('bot.contract', poc);
             }
         };
 
@@ -595,10 +607,6 @@ const SpeedBot = observer(() => {
         setPredictions(prev => prev.map(p => (p.id === id ? { ...p, [field]: value } : p)));
     };
 
-    const showToast = (msg: string) => {
-        setToastMessage(msg);
-        setTimeout(() => setToastMessage(null), 2200);
-    };
 
     const checkEntryCondition = () => {
         if (!entryEnabled) return true;
@@ -673,6 +681,7 @@ const SpeedBot = observer(() => {
                             profit: '0.00',
                             status: 'running',
                             timestamp: Date.now(),
+                            barrier: req.barrier
                         };
                         return [newTx, ...prev];
                     });
@@ -718,13 +727,11 @@ const SpeedBot = observer(() => {
 
         // Enforce Entry Condition for Manual Trades too
         if (entryEnabled && !checkEntryCondition()) {
-            // For Specific Trades (customBarrier), user might expect forced execution?
-            // But request said "use all bot config".
-            showToast('Entry condition detection...');
-            if (!checkEntryCondition()) {
-                showToast('Entry condition not met!');
-                return;
+            if (!isAutoTrading) {
+                showToast('Waiting for entry condition...');
+                setDebugStatus('Waiting for entry...');
             }
+            return;
         }
 
         const symbol = getSymbol(volatility);
@@ -865,14 +872,7 @@ const SpeedBot = observer(() => {
 
     const isEvenOdd = tradeType === 'DIGITEVEN' || tradeType === 'DIGITODD';
 
-    const getLdpColor = (digit: number, count: number, total: number, max: number) => {
-        const intensity = max > 0 ? count / max : 0;
-        const hue = 120 - intensity * 100 * 1.2;
-        return `hsl(${hue}, 75%, ${35 + intensity * 0.3 * 100}%)`;
-    };
-
     const totalDigits = digitHistoryRef.current.length;
-    const maxCount = ldpStats.length ? Math.max(...ldpStats) : 0;
 
     return (
         <div className='speed-bot-page'>
@@ -1363,12 +1363,26 @@ const SpeedBot = observer(() => {
                                                 borderLeft: `3px solid ${tx.status === 'won' ? '#00d085' : tx.status === 'lost' ? '#ff444f' : '#fbbf24'}`,
                                             }}
                                         >
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <span style={{ color: '#fff' }}>{tx.contract_type}</span>
-                                                <span style={{ color: '#8b9bb4' }}>Ref: {tx.ref}</span>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                <span style={{ color: '#fff', fontWeight: 'bold' }}>{tx.contract_type.replace('DIGIT', '')}</span>
+                                                {tx.barrier !== undefined && (
+                                                    <span style={{ color: '#fbbf24', fontSize: '11px' }}>Pred: {tx.barrier}</span>
+                                                )}
+                                                {tx.exit_digit !== undefined && (
+                                                    <span style={{
+                                                        color: tx.status === 'won' ? '#00d085' : '#ff444f',
+                                                        fontSize: '11px',
+                                                        backgroundColor: 'rgba(0,0,0,0.3)',
+                                                        padding: '1px 4px',
+                                                        borderRadius: '3px'
+                                                    }}>
+                                                        Res: {tx.exit_digit}
+                                                    </span>
+                                                )}
+                                                <span style={{ color: '#8b9bb4', fontSize: '10px' }}>Ref: {tx.ref}</span>
                                             </div>
-                                            <div style={{ display: 'flex', gap: '12px' }}>
-                                                <span style={{ color: '#fff' }}>Stake: {tx.stake}</span>
+                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                                <span style={{ color: '#fff' }}>${tx.stake}</span>
                                                 <div style={{ display: 'flex', gap: '6px' }}>
                                                     <span
                                                         style={{

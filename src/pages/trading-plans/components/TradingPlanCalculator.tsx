@@ -46,9 +46,9 @@ const TradingPlanCalculator = () => {
             for (let s = 0; s < sessionsPerDay; s++) {
                 let sessionProfit;
                 if (mode === 'gain') {
-                    sessionProfit = capital * gainPct;
+                    sessionProfit = (capital * gainPct) / sessionsPerDay;
                 } else {
-                    sessionProfit = fixedTarget;
+                    sessionProfit = fixedTarget / sessionsPerDay;
                 }
                 capital += sessionProfit;
                 dailyProfit += sessionProfit;
