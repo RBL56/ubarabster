@@ -82,8 +82,39 @@ const SpeedBot = observer(() => {
 
     const digitHistoryRef = useRef<number[]>([]);
     const lastResultRef = useRef<'won' | 'lost' | null>(null);
-    const activeContractIdRef = useRef<number | null>(null);
+    const activeContractIdsRef = useRef<Set<string>>(new Set());
     const subscriptionIdRef = useRef<string | null>(null);
+
+    // Refs for stale closure fixes in transactional monitor & auto engine
+    const isAutoTradingRef = useRef(isAutoTrading);
+    const martingaleEnabledRef = useRef(martingaleEnabled);
+    const martingaleMultiplierRef = useRef(martingaleMultiplier);
+    const stakeRef = useRef(stake);
+    const currentStakeRef = useRef(currentStake);
+    const consecutiveLossesRef = useRef(consecutiveLosses);
+    const isTradingRef = useRef(isTrading);
+    const totalProfitRef = useRef(totalProfit);
+    const stopLossTotalRef = useRef(stopLossTotal);
+    const stopLossTotalEnabledRef = useRef(stopLossTotalEnabled);
+    const takeProfitTotalRef = useRef(takeProfitTotal);
+    const takeProfitEnabledRef = useRef(takeProfitEnabled);
+    const stopLossConsecutiveRef = useRef(stopLossConsecutive);
+    const stopLossConsecutiveEnabledRef = useRef(stopLossConsecutiveEnabled);
+
+    useEffect(() => { isAutoTradingRef.current = isAutoTrading; }, [isAutoTrading]);
+    useEffect(() => { martingaleEnabledRef.current = martingaleEnabled; }, [martingaleEnabled]);
+    useEffect(() => { martingaleMultiplierRef.current = martingaleMultiplier; }, [martingaleMultiplier]);
+    useEffect(() => { stakeRef.current = stake; }, [stake]);
+    useEffect(() => { currentStakeRef.current = currentStake; }, [currentStake]);
+    useEffect(() => { consecutiveLossesRef.current = consecutiveLosses; }, [consecutiveLosses]);
+    useEffect(() => { isTradingRef.current = isTrading; }, [isTrading]);
+    useEffect(() => { totalProfitRef.current = totalProfit; }, [totalProfit]);
+    useEffect(() => { stopLossTotalRef.current = stopLossTotal; }, [stopLossTotal]);
+    useEffect(() => { stopLossTotalEnabledRef.current = stopLossTotalEnabled; }, [stopLossTotalEnabled]);
+    useEffect(() => { takeProfitTotalRef.current = takeProfitTotal; }, [takeProfitTotal]);
+    useEffect(() => { takeProfitEnabledRef.current = takeProfitEnabled; }, [takeProfitEnabled]);
+    useEffect(() => { stopLossConsecutiveRef.current = stopLossConsecutive; }, [stopLossConsecutive]);
+    useEffect(() => { stopLossConsecutiveEnabledRef.current = stopLossConsecutiveEnabled; }, [stopLossConsecutiveEnabled]);
     const { connectionStatus } = useApiBase();
     const { client, run_panel, summary_card, transactions: transactionsStore } = useStore();
 
@@ -138,6 +169,35 @@ const SpeedBot = observer(() => {
         }
         return ent.toFixed(2);
     };
+
+    const runAutoEngine = useCallback(() => {
+        if (!isAutoTradingRef.current || isTradingRef.current) return;
+
+        // Check limits
+        if (stopLossTotalEnabledRef.current && totalProfitRef.current <= stopLossTotalRef.current) {
+            setIsAutoTrading(false);
+            showToast('Stop Loss Reached!');
+            return;
+        }
+        if (takeProfitEnabledRef.current && totalProfitRef.current >= takeProfitTotalRef.current) {
+            setIsAutoTrading(false);
+            showToast('Take Profit Reached!');
+            return;
+        }
+        if (
+            stopLossConsecutiveEnabledRef.current &&
+            consecutiveLossesRef.current >= stopLossConsecutiveRef.current
+        ) {
+            setIsAutoTrading(false);
+            showToast('Max Consecutive Losses Reached!');
+            return;
+        }
+
+        // Check Entry and Execute
+        if (checkEntryCondition()) {
+            tradeOnce(currentStakeRef.current);
+        }
+    }, []); // Empty deps because it uses refs
 
     const updateLdpStats = useCallback(() => {
         if (digitHistoryRef.current.length === 0) {
@@ -379,10 +439,10 @@ const SpeedBot = observer(() => {
                 updateLdpStats();
                 updateLdpGrid(digit); // Explicitly update grid via DOM for speed
 
-                // Note: We avoid setLastDigit() on every tick to prevent full component re-renders
-                // which would wipe our manual DOM updates in the live strip.
-                // We only update lastDigit state if we really need it for something else,
-                // but currently the cursor in the grid and the metric are handled by refs/manual updates.
+                // 4. Auto Engine check triggered by tick for maximal responsiveness
+                if (isAutoTradingRef.current) {
+                    runAutoEngine();
+                }
             }
         };
 
@@ -402,58 +462,74 @@ const SpeedBot = observer(() => {
         const handleMessage = (response: any) => {
             if (response.proposal_open_contract) {
                 const poc = response.proposal_open_contract;
-                const contractId = poc.contract_id;
+                const contractId = String(poc.contract_id);
 
-                setTransactions(prev =>
-                    prev.map(tx => {
-                        if (tx.id === contractId) {
-                            // Update status
-                            let status: Transaction['status'] = 'running';
-                            if (poc.is_sold) {
-                                status = poc.status === 'won' ? 'won' : 'lost';
-                                if (tx.id === activeContractIdRef.current) {
+                // Update transaction in list if it exists
+                setTransactions(prev => {
+                    const exists = prev.some(tx => String(tx.id) === contractId);
+                    if (!exists && !activeContractIdsRef.current.has(contractId)) return prev;
+
+                    return prev.map(tx => {
+                        if (String(tx.id) === contractId) {
+                            let status: Transaction['status'] = tx.status;
+
+                            // Check for completion
+                            if (poc.is_sold || poc.status === 'won' || poc.status === 'lost' || poc.status === 'sold') {
+                                status = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' : 'lost';
+
+                                // If this was an active contract we were tracking, finalize it
+                                if (activeContractIdsRef.current.has(contractId)) {
                                     lastResultRef.current = status;
-                                    activeContractIdRef.current = null;
-                                    setIsTrading(false);
+                                    activeContractIdsRef.current.delete(contractId);
 
-                                    if (!isAutoTrading) {
+                                    if (activeContractIdsRef.current.size === 0) {
+                                        setIsTrading(false);
+                                    }
+
+                                    if (!isAutoTradingRef.current) {
                                         showToast(`Trade ${status.toUpperCase()}! Profit: ${poc.profit}`);
                                         setLastResultDisplay(status === 'won' ? 'WIN' : 'LOSS');
                                     }
 
-                                    // Explicitly request balance update to ensure it reflects in the header
+                                    // Refresh balance
                                     api_base.api.send({ balance: 1, subscribe: 1 });
 
-                                    // Process Result (Martingale & Stats) - Runs for Manual & Auto
+                                    // Process stats
                                     if (status === 'won') {
                                         setConsecutiveLosses(0);
-                                        setCurrentStake(stake);
+                                        setCurrentStake(stakeRef.current);
                                         setLastResultDisplay('WIN');
                                     } else if (status === 'lost') {
                                         setConsecutiveLosses(prev => prev + 1);
-                                        if (martingaleEnabled) {
-                                            setCurrentStake(prev => Number((prev * martingaleMultiplier).toFixed(2)));
+                                        if (martingaleEnabledRef.current) {
+                                            setCurrentStake(prev =>
+                                                Number((prev * martingaleMultiplierRef.current).toFixed(2))
+                                            );
                                         }
                                         setLastResultDisplay('LOSS');
                                     }
                                 }
+                            } else if (poc.status === 'open' || !poc.is_sold) {
+                                status = 'running';
                             }
-                            const profit = poc.profit ? Number(poc.profit).toFixed(2) : '0.00';
 
-                            // Emit bot.contract event to update main app results/transactions
+                            const profit = poc.profit !== undefined ? Number(poc.profit).toFixed(2) :
+                                (poc.bid_price && poc.buy_price ? Number(poc.bid_price - poc.buy_price).toFixed(2) : tx.profit);
+
+                            // Sync with main app
                             botObserver.emit('bot.contract', poc);
 
                             return { ...tx, status, profit };
                         }
                         return tx;
-                    })
-                );
+                    });
+                });
             }
         };
 
         const sub = api_base.api.onMessage().subscribe(handleMessage);
         return () => sub.unsubscribe();
-    }, []);
+    }, [connectionStatus]);
 
     // -- UI Handlers --
     const handleTradeTypeChange = (val: string) => {
@@ -563,7 +639,7 @@ const SpeedBot = observer(() => {
                         timestamp: Date.now(),
                     };
                     setTransactions(prev => [newTx, ...prev]);
-                    activeContractIdRef.current = buyRes.buy.contract_id;
+                    activeContractIdsRef.current.add(String(buyRes.buy.contract_id));
 
                     // Emit events
                     botObserver.emit('bot.running');
@@ -706,7 +782,7 @@ const SpeedBot = observer(() => {
         setTotalLosses(0);
         setLastResultDisplay(null);
         lastResultRef.current = null;
-        activeContractIdRef.current = null;
+        activeContractIdsRef.current.clear();
         setIsTrading(false);
 
         setIsAutoTrading(true);
@@ -714,72 +790,15 @@ const SpeedBot = observer(() => {
         botObserver.emit('bot.running');
     };
 
-    // -- Auto Engine Hook --
     // -- Result Processing (Manual & Auto) --
-    useEffect(() => {
-        // Handle Last Result Updates (Martingale & Stats)
-        if (lastResultRef.current === 'won') {
-            const profit = transactions[0]?.profit || 0; // Approx
-            setConsecutiveLosses(0);
-            setCurrentStake(stake);
-            lastResultRef.current = null;
-            setLastResultDisplay('WIN');
-        } else if (lastResultRef.current === 'lost') {
-            setConsecutiveLosses(prev => prev + 1);
-            if (martingaleEnabled) {
-                setCurrentStake(prev => Number((prev * martingaleMultiplier).toFixed(2)));
-            }
-            lastResultRef.current = null;
-            setLastResultDisplay('LOSS');
-        }
-    }, [transactions, martingaleEnabled, martingaleMultiplier, stake]); // triggering on transactions update or just check loop? 
-    // Actually, lastResultRef is mutable, so we need something to trigger the effect. 
-    // The previous code used the auto-loop dependencies. 
-    // The transaction monitor sets setIsTrading(false) and lastResultRef.
-    // Let's use `isTrading` changing to false as a trigger or just listen to `lastResultRef.current` (not possible directly).
-    // Better: Moving the logic inside the Transaction Monitor where `lastResultRef` is set.
+    // Handled in Transaction Monitor via handleMessage for speed and reliability.
 
     // -- Auto Engine Hook --
     useEffect(() => {
-        if (!isAutoTrading) return;
-
-        // Check limits
-        if (stopLossTotalEnabled && totalProfit <= stopLossTotal) {
-            setIsAutoTrading(false);
-            showToast('Stop Loss Reached!');
-            return;
+        if (isAutoTrading && !isTrading) {
+            runAutoEngine();
         }
-        if (takeProfitEnabled && totalProfit >= takeProfitTotal) {
-            setIsAutoTrading(false);
-            showToast('Take Profit Reached!');
-            return;
-        }
-        if (stopLossConsecutiveEnabled && consecutiveLosses >= stopLossConsecutive) {
-            setIsAutoTrading(false);
-            showToast('Max Consecutive Losses Reached!');
-            return;
-        }
-
-        // Check Entry and Execute
-        if (!isTrading && checkEntryCondition()) {
-            // For Auto, we use the Calculated Current Stake
-            tradeOnce(currentStake);
-        }
-    }, [
-        digits, // Trigger on new tick/data
-        lastDigit,
-        isAutoTrading,
-        isTrading,
-        currentStake,
-        consecutiveLosses,
-        totalProfit,
-        stopLossTotal,
-        stopLossTotalEnabled,
-        takeProfitTotal,
-        takeProfitEnabled,
-        stopLossConsecutive,
-        stopLossConsecutiveEnabled,
-    ]);
+    }, [isAutoTrading, isTrading, runAutoEngine]);
 
     // Update total profit and counts whenever transactions change
     useEffect(() => {

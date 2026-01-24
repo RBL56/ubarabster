@@ -727,6 +727,9 @@ export default class RunPanelStore {
         observer.register('ui.log.notify', journal.onNotify);
         observer.register('ui.log.success', journal.onLogSuccess);
         observer.register('client.invalid_token', this.handleInvalidToken);
+
+        // Register contract listeners globally so they work for SpeedBot and other sources
+        this.registerBotListeners();
     };
 
     onUnmount = () => {
