@@ -1,4 +1,4 @@
-import React, { useEffect, useRef,useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { localize } from '@deriv-com/translations';
 import { Text } from '@deriv-com/ui';
@@ -17,6 +17,7 @@ const TradingPlanCalculator = () => {
     const [dailyGain, setDailyGain] = useState<number>(3);
     const [dailyTarget, setDailyTarget] = useState<number>(150);
     const [totalDays, setTotalDays] = useState<number>(20);
+    const [sessionsPerDay, setSessionsPerDay] = useState<number>(1);
     const [planData, setPlanData] = useState<PlanRow[]>([]);
     const [summary, setSummary] = useState({
         finalBalance: 0,
@@ -39,26 +40,31 @@ const TradingPlanCalculator = () => {
         const newData: PlanRow[] = [];
 
         for (let day = 1; day <= days; day++) {
-            let profit;
-            if (mode === 'gain') {
-                profit = capital * gainPct;
-            } else {
-                profit = fixedTarget;
+            let dailyProfit = 0;
+            const dayStart = capital;
+
+            for (let s = 0; s < sessionsPerDay; s++) {
+                let sessionProfit;
+                if (mode === 'gain') {
+                    sessionProfit = capital * gainPct;
+                } else {
+                    sessionProfit = fixedTarget;
+                }
+                capital += sessionProfit;
+                dailyProfit += sessionProfit;
             }
 
-            const ending = capital + profit;
+            const ending = capital;
             const cumulativePct = (ending / initialCapital - 1) * 100;
-            totalProfit += profit;
+            totalProfit += dailyProfit;
 
             newData.push({
                 day,
-                start: capital.toFixed(2),
-                profit: profit.toFixed(2),
+                start: dayStart.toFixed(2),
+                profit: dailyProfit.toFixed(2),
                 end: ending.toFixed(2),
                 cumPct: cumulativePct.toFixed(2),
             });
-
-            capital = ending;
         }
 
         setPlanData(newData);
@@ -235,6 +241,21 @@ const TradingPlanCalculator = () => {
                                     step='1'
                                 />
                             </div>
+                        </div>
+                    </div>
+
+                    <div className='sessions-selector-container'>
+                        <div className='section-subtitle'>{localize('SESSIONS PER DAY')}</div>
+                        <div className='sessions-buttons'>
+                            {[1, 2, 3].map(s => (
+                                <button
+                                    key={s}
+                                    className={sessionsPerDay === s ? 'active' : ''}
+                                    onClick={() => setSessionsPerDay(s)}
+                                >
+                                    {s} {s === 1 ? localize('Session') : localize('Sessions')}
+                                </button>
+                            ))}
                         </div>
                     </div>
 

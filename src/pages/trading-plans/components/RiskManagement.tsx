@@ -1,4 +1,4 @@
-import React, { useEffect,useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { localize } from '@deriv-com/translations';
 import { Text } from '@deriv-com/ui';
@@ -11,6 +11,7 @@ const RiskManagement = () => {
     const [martingaleMultiplier, setMartingaleMultiplier] = useState<number>(2);
     const [takeProfit, setTakeProfit] = useState<number>(3);
     const [stopLoss, setStopLoss] = useState<number>(9);
+    const [sessionsPerDay, setSessionsPerDay] = useState<number>(1);
     const [activePercentage, setActivePercentage] = useState<number | null>(0.02);
 
     const formatMoney = (num: number) => num.toFixed(2);
@@ -218,6 +219,21 @@ const RiskManagement = () => {
                             <span className='text'>{localize('Consecutive Losses')}</span>
                         </div>
                         <button onClick={() => changeLossCount(1)}>+</button>
+                    </div>
+
+                    <div className='sessions-selector-container'>
+                        <div className='section-subtitle'>{localize('SESSIONS PER DAY')}</div>
+                        <div className='sessions-buttons'>
+                            {[1, 2, 3].map(s => (
+                                <button
+                                    key={s}
+                                    className={sessionsPerDay === s ? 'active' : ''}
+                                    onClick={() => setSessionsPerDay(s)}
+                                >
+                                    {s} {s === 1 ? localize('Session') : localize('Sessions')}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 

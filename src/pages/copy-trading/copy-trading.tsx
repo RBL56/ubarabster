@@ -59,9 +59,7 @@ const CopyTrading = observer(() => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     // Risk Controls
-    const [maxStakePercent, setMaxStakePercent] = useState(() => copyTradingService.getStatus().settings.maxStakePercent);
-    const [dailyLossLimit, setDailyLossLimit] = useState(() => copyTradingService.getStatus().settings.dailyLossLimit);
-    const [stakeMultiplier, setStakeMultiplier] = useState(() => copyTradingService.getStatus().settings.stakeMultiplier);
+
 
     // Refs for real-time logic
     const secondarySocketRef = useRef<WebSocket | null>(null);
@@ -228,12 +226,12 @@ const CopyTrading = observer(() => {
     useEffect(() => {
         copyTradingService.updateClients(clients);
         copyTradingService.updateSettings({
-            maxStakePercent,
-            stakeMultiplier,
-            dailyLossLimit,
+            maxStakePercent: 5,
+            stakeMultiplier: 1,
+            dailyLossLimit: 10,
             copyToClients,
         });
-    }, [clients, maxStakePercent, stakeMultiplier, dailyLossLimit, copyToClients]);
+    }, [clients, copyToClients]);
 
     // -- render helpers --
     const getSecondaryStatusIcon = () => {
@@ -409,9 +407,9 @@ const CopyTrading = observer(() => {
                             onClick={() => {
                                 setIsCopying(true);
                                 copyTradingService.enableCopyTrading(clients, {
-                                    maxStakePercent,
-                                    stakeMultiplier,
-                                    dailyLossLimit,
+                                    maxStakePercent: 5,
+                                    stakeMultiplier: 1,
+                                    dailyLossLimit: 10,
                                     copyToClients,
                                 });
                                 addNotification('Copy trading engine started', 'success');
@@ -432,48 +430,7 @@ const CopyTrading = observer(() => {
                         </button>
                     </div>
 
-                    <div style={{ marginTop: '16px', fontWeight: 500, fontSize: '1.4rem' }}>
-                        Trading Status:{' '}
-                        <span style={{ color: isCopying ? 'var(--success)' : 'var(--danger)' }}>
-                            {isCopying ? 'Active' : 'Not active'}
-                        </span>
-                    </div>
 
-                    <div className='risk-controls'>
-                        <div className='risk-input'>
-                            <label>Max Stake %</label>
-                            <input
-                                type='number'
-                                value={maxStakePercent}
-                                onChange={e => setMaxStakePercent(parseFloat(e.target.value))}
-                                min='1'
-                                max='20'
-                                step='0.5'
-                            />
-                        </div>
-                        <div className='risk-input'>
-                            <label>Daily Loss Limit %</label>
-                            <input
-                                type='number'
-                                value={dailyLossLimit}
-                                onChange={e => setDailyLossLimit(parseFloat(e.target.value))}
-                                min='1'
-                                max='50'
-                                step='1'
-                            />
-                        </div>
-                        <div className='risk-input'>
-                            <label>Stake Multiplier</label>
-                            <input
-                                type='number'
-                                value={stakeMultiplier}
-                                onChange={e => setStakeMultiplier(parseFloat(e.target.value))}
-                                min='0.1'
-                                max='5'
-                                step='0.1'
-                            />
-                        </div>
-                    </div>
                 </div>
 
                 <div className='card'>

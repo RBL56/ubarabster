@@ -3,6 +3,8 @@ import locospeedbotXml from '@/xml/locospeedbot.xml';
 import locoV15Xml from '@/xml/LOCO V1.5.xml';
 import locoSpeedBotEntryXml from '@/xml/LOCO SPEED BOT WITH ENTRY .xml';
 import entryPointBotOver2Xml from '@/xml/_Entry point Bot over 2.xml';
+import unstoppableDifferBotXml from '@/xml/UNSTOPPABLE DIFFER BOT.xml';
+import overUnderAutoSwitcherXml from '@/xml/OVER UNDER AUTO SWITCHER.xml';
 
 export type TBotConfig = {
     id: string;
@@ -47,5 +49,19 @@ export const FREE_BOTS: TBotConfig[] = [
         description: 'Strategy focused on over 2 predictions',
         xml: entryPointBotOver2Xml,
         category: 'Progressive',
+    },
+    {
+        id: 'unstoppable_differ_bot',
+        name: 'UNSTOPPABLE DIFFER BOT',
+        description: 'High-performance differ strategy',
+        xml: unstoppableDifferBotXml,
+        category: 'Automatic',
+    },
+    {
+        id: 'over_under_auto_switcher',
+        name: 'OVER UNDER AUTO SWITCHER',
+        description: 'Automatic switching between Over and Under contracts',
+        xml: overUnderAutoSwitcherXml,
+        category: 'Automatic',
     },
 ];
