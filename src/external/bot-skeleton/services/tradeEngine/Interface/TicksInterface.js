@@ -5,6 +5,7 @@ const getTicksInterface = tradeEngine => {
         getStatList: (...args) => tradeEngine.getStatList(...args),
         getLastTick: (...args) => tradeEngine.getLastTick(...args),
         getLastDigit: (...args) => tradeEngine.getLastDigit(...args),
+        getNthLastDigit: (...args) => tradeEngine.getNthLastDigit(...args),
         getTicks: (...args) => tradeEngine.getTicks(...args),
         checkDirection: (...args) => tradeEngine.checkDirection(...args),
         getOhlcFromEnd: (...args) => tradeEngine.getOhlcFromEnd(...args),

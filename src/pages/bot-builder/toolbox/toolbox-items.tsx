@@ -181,6 +181,81 @@ export const ToolboxItems = () => {
             </Category>
 
             <Category id='analysis' name={localize('Analysis')}>
+                <Category id='analysis_logics' name={localize('Analysis Logics')}>
+                    <Block type='last_digits_condition'>
+                        <Field name='CONDITION'>LT</Field>
+                        <Value name='DIGITS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>3</Field>
+                            </Shadow>
+                        </Value>
+                        <Value name='DIGIT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>4</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='digit_frequency_analysis'>
+                        <Field name='CONDITION'>MOST</Field>
+                        <Value name='DIGITS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>1000</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='even_odd_percentage'>
+                        <Field name='TYPE'>EVEN</Field>
+                        <Value name='DIGITS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>1000</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='over_under_analysis'>
+                        <Field name='CONDITION'>OVER</Field>
+                        <Value name='THRESHOLD'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>4</Field>
+                            </Shadow>
+                        </Value>
+                        <Value name='DIGITS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>1000</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='match_differ_analysis'>
+                        <Field name='CONDITION'>MATCH</Field>
+                        <Value name='DIGIT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>5</Field>
+                            </Shadow>
+                        </Value>
+                        <Value name='DIGITS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>1000</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='last_n_ticks_direction'>
+                        <Field name='DIRECTION'>RISE</Field>
+                        <Value name='TICKS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>5</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='rise_fall_percentage'>
+                        <Field name='DIRECTION'>RISE</Field>
+                        <Value name='TICKS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>1000</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='tick' />
+                    <Block type='last_digit' />
+                </Category>
                 <Category id='indicators' name={localize('Indicators')}>
                     <Block type='sma_statement'>
                         <Statement name='STATEMENT'>

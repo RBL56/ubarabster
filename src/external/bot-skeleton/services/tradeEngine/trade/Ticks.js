@@ -78,6 +78,21 @@ export default Engine =>
             return new Promise(resolve => this.getLastTick(false, true).then(tick => resolve(getLastDigit(tick))));
         }
 
+        getNthLastDigit(n) {
+            return new Promise(resolve =>
+                this.getTicks().then(ticks => {
+                    const limit = ticks.length;
+                    if (n <= 0 || n > limit) {
+                        resolve(0); // or handle error gracefully
+                        return;
+                    }
+                    const nthTick = ticks[limit - n];
+                    const digit = getLastDigit(nthTick.toFixed(this.getPipSize()));
+                    resolve(digit);
+                })
+            );
+        }
+
         getLastDigitList() {
             return new Promise(resolve => this.getTicks().then(ticks => resolve(this.getLastDigitsFromList(ticks))));
         }

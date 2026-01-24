@@ -10,3 +10,5 @@ import './last_digit';
 import './lastDigitList';
 import './stat';
 import './stat_list';
+import './second_last_digit';
+import './nth_last_digit';
