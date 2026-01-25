@@ -334,7 +334,21 @@ const SpeedBot = observer(() => {
                     });
 
                     // Subscribe to updates
-                    api_base.api.send({ proposal_open_contract: 1, contract_id: buyRes.buy.contract_id, subscribe: 1 });
+                    api_base.api.send({ proposal_open_contract: 1, contract_id: buyRes.buy.contract_id, subscribe: 1 })
+                        .then((sRes: any) => {
+                            if (sRes.error) {
+                                console.error('[SpeedBot] POC Sub Error:', sRes.error);
+                                addJournal(`Sub Error: ${sRes.error.code}`, 'error');
+                            }
+                            else {
+                                console.log('[SpeedBot] POC Subscribed for', buyRes.buy.contract_id);
+                                addJournal(`Subscribed to ${buyRes.buy.contract_id}`, 'info');
+                            }
+                        })
+                        .catch((e: any) => {
+                            console.error('[SpeedBot] POC Sub Exception:', e);
+                            addJournal(`Sub Exception: ${e.message}`, 'error');
+                        });
 
                     // Only show success toast for single trades to avoid spam
                     if (!isAutoTrading && (!bulkEnabled || bulkTrades === 1)) {
@@ -847,6 +861,15 @@ const SpeedBot = observer(() => {
                 const contractId = String(poc.contract_id);
                 const isActive = activeContractIdsRef.current.has(contractId);
 
+                // DEBUG: Force log
+                // addJournal(`Stream: ${contractId} ${poc.status}`, 'info');
+
+                if (isActive || transactions.some(t => String(t.id) === contractId)) {
+                    // Log significant updates
+                    if (poc.status === 'won' || poc.status === 'lost') {
+                        addJournal(`Result: ${contractId} ${poc.status.toUpperCase()}`, poc.status === 'won' ? 'success' : 'error');
+                    }
+                }
                 let statusToProcess: Transaction['status'] | null = null;
 
                 setTransactions(prev => {
@@ -854,6 +877,7 @@ const SpeedBot = observer(() => {
 
                     if (existingIndex === -1) {
                         if (isActive) {
+                            console.log(`[SpeedBot] New Active Transaction found for ${contractId}`);
                             const status: Transaction['status'] = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' :
                                 (poc.status === 'lost' || Number(poc.profit) < 0) ? 'lost' : 'running';
 
@@ -901,6 +925,7 @@ const SpeedBot = observer(() => {
                 });
 
                 if (statusToProcess) {
+                    console.log(`[SpeedBot] Processing completion for ${contractId} with status ${statusToProcess}`);
                     handleTradeCompletion(poc, statusToProcess);
                 }
 
@@ -1006,6 +1031,74 @@ const SpeedBot = observer(() => {
 
     // -- Result Processing (Manual & Auto) --
     // Handled in Transaction Monitor via handleMessage for speed and reliability.
+
+    // -- Polling Cleanup / Backstop --
+    // In case subscriptions fail, we poll active contracts every 2 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const activeIds = Array.from(activeContractIdsRef.current);
+            if (activeIds.length === 0) return;
+
+            activeIds.forEach(id => {
+                // Explicitly fetch status without subscribe to check
+                api_base.api.send({ proposal_open_contract: 1, contract_id: Number(id) })
+                    .then((res: any) => {
+                        if (res.proposal_open_contract) {
+                            const poc = res.proposal_open_contract;
+                            if (poc.is_sold || poc.status === 'won' || poc.status === 'lost') {
+                                console.log('[SpeedBot] Poller found finished contract:', id);
+                                // The handleMessage observer *should* pick this up because we are broadcasting to it?
+                                // No, handleMessage is subscribed to api.onMessage. 
+                                // api.send response is handled here in .then.
+                                // So we need to manually trigger the update logic or reuse it.
+                                // Ideally, we just emit it to the stream manually or call a shared handler.
+                                // Let's just create a synthetic event for handleMessage consumers if possible, 
+                                // OR just update local state directly.
+
+                                // Calling the shared logic:
+                                // We can't easily call handleMessage inside here because it's defined inside another useEffect.
+                                // But! api_base.api.onMessage() is a stream. We can just emit? No, strictly it's an observable from API.
+
+                                // Simplest way: Reuse the state update logic by refactoring it or duplicating strictly necessary parts.
+                                // Let's duplicate the critical status update part for the poller to ensure it works.
+
+                                let statusToProcess: Transaction['status'] | null = null;
+                                setTransactions(prev => {
+                                    const idx = prev.findIndex(tx => String(tx.id) === String(id));
+                                    if (idx === -1) return prev;
+
+                                    const tx = prev[idx];
+                                    // If already finished, remove from active
+                                    if (tx.status === 'won' || tx.status === 'lost') {
+                                        if (activeContractIdsRef.current.has(String(id))) {
+                                            activeContractIdsRef.current.delete(String(id));
+                                        }
+                                        return prev;
+                                    }
+
+                                    const status: Transaction['status'] = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' : 'lost';
+                                    statusToProcess = status;
+
+                                    const profit = poc.profit !== undefined ? Number(poc.profit).toFixed(2) : tx.profit;
+                                    const exit_digit = (poc.exit_tick_display_value) ? parseInt(poc.exit_tick_display_value.slice(-1), 10) : tx.exit_digit;
+
+                                    const next = [...prev];
+                                    next[idx] = { ...tx, status, profit, exit_digit };
+                                    return next;
+                                });
+
+                                if (statusToProcess) {
+                                    handleTradeCompletion(poc, statusToProcess);
+                                }
+                            }
+                        }
+                    })
+                    .catch(e => console.error('[SpeedBot] Poller Error:', e));
+            });
+        }, 2000);
+
+        return () => clearInterval(interval);
+    }, [handleTradeCompletion]);
 
     // -- Auto Engine Hook --
     useEffect(() => {
