@@ -19,8 +19,10 @@ type Transaction = {
     status: 'pending' | 'won' | 'lost' | 'running';
     timestamp: number;
     barrier?: number | string;
+    entry_digit?: number;
     exit_digit?: number;
 };
+
 
 // Journal Entry Type
 type JournalEntry = {
@@ -87,6 +89,7 @@ const SpeedBot = observer(() => {
     const [journal, setJournal] = useState<JournalEntry[]>([]);
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'summary' | 'transactions' | 'journal'>('transactions');
 
     const liveDigitsRef = useRef<HTMLDivElement>(null);
     const lastDigitRef = useRef<HTMLDivElement>(null);
@@ -913,12 +916,21 @@ const SpeedBot = observer(() => {
                         status = 'running';
                     }
 
+                    const lastDigit = (val: string | number | undefined): number | undefined => {
+                        if (val === undefined || val === null) return undefined;
+                        const str = String(val);
+                        if (!str.length) return undefined;
+                        const d = parseInt(str.slice(-1), 10);
+                        return isNaN(d) ? undefined : d;
+                    };
+
                     const profit = poc.profit !== undefined ? Number(poc.profit).toFixed(2) :
                         (poc.bid_price && poc.buy_price ? Number(poc.bid_price - poc.buy_price).toFixed(2) : tx.profit);
 
-                    const exit_digit = (poc.exit_tick_display_value) ? parseInt(poc.exit_tick_display_value.slice(-1), 10) : tx.exit_digit;
+                    const exit_digit = lastDigit(poc.exit_tick_display_value) ?? lastDigit(poc.exit_spot) ?? lastDigit(poc.tick_val) ?? lastDigit(poc.tick_stream ? poc.tick_stream[poc.tick_stream.length - 1]?.tick_display_value : undefined) ?? tx.exit_digit;
+                    const entry_digit = lastDigit(poc.entry_tick_display_value) ?? lastDigit(poc.entry_spot) ?? lastDigit(poc.tick_stream ? poc.tick_stream[0]?.tick_display_value : undefined) ?? tx.entry_digit;
 
-                    const updatedTx = { ...tx, status, profit, exit_digit };
+                    const updatedTx = { ...tx, status, profit, exit_digit, entry_digit };
                     const next = [...prev];
                     next[existingIndex] = updatedTx;
                     return next;
@@ -1510,49 +1522,47 @@ const SpeedBot = observer(() => {
                     </section>
 
                     {/* -- Live Data Section -- */}
-                    <section className='card'>
+                    <section className='card' style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+                        {/* Always visible Live Digits */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                             <h3 style={{ margin: 0 }}>Live digits</h3>
                             <div className='status-dot-pulse'></div>
                         </div>
-
-                        {/* Wrapper for direct DOM manipulation to survive React cycles */}
                         <div className='live-digits-wrapper'>
                             <div className='digits' ref={liveDigitsRef}></div>
                         </div>
 
+                        {/* Always visible Last Digit Stats */}
                         <div className='section-title'>Last Digit Stats (last {totalDigits} ticks)</div>
                         <div className='ldp-grid'>
-                            {Array.from({ length: 10 }).map((_, d) => {
-                                // Initial render only - updates happen via refs
-                                return (
-                                    <div
-                                        key={d}
-                                        ref={el => (ldpCellsRef.current[d] = el)}
-                                        className='ldp-cell'
-                                        onClick={() => handleDigitClick(d)}
-                                    >
-                                        <div className='digit-num'>{d}</div>
-                                        <div className='percent'>
-                                            {[0, 1, 2].map(i => (
-                                                <div key={i} className='digit-col' style={{ opacity: i < 2 ? 0 : 1 }}>
-                                                    {Array.from({ length: 10 }).map((_, n) => (
-                                                        <span key={n}>{n}</span>
-                                                    ))}
-                                                </div>
-                                            ))}
-                                            <span>.</span>
-                                            <div className='digit-col'>
+                            {Array.from({ length: 10 }).map((_, d) => (
+                                <div
+                                    key={d}
+                                    ref={el => (ldpCellsRef.current[d] = el)}
+                                    className='ldp-cell'
+                                    onClick={() => handleDigitClick(d)}
+                                >
+                                    <div className='digit-num'>{d}</div>
+                                    <div className='percent'>
+                                        {[0, 1, 2].map(i => (
+                                            <div key={i} className='digit-col' style={{ opacity: i < 2 ? 0 : 1 }}>
                                                 {Array.from({ length: 10 }).map((_, n) => (
                                                     <span key={n}>{n}</span>
                                                 ))}
                                             </div>
-                                            <span>%</span>
+                                        ))}
+                                        <span>.</span>
+                                        <div className='digit-col'>
+                                            {Array.from({ length: 10 }).map((_, n) => (
+                                                <span key={n}>{n}</span>
+                                            ))}
                                         </div>
-                                        <div className='count'>0</div>
+                                        <span>%</span>
                                     </div>
-                                );
-                            })}
+                                    <div className='count'>0</div>
+                                </div>
+                            ))}
                         </div>
                         <div style={{ textAlign: 'center', fontSize: '13px', color: '#9fb3c8', marginTop: '8px' }}>
                             Hot <span style={{ color: '#ff6b6b' }}>■■■■■■■■■■</span> → Cold{' '}
@@ -1570,171 +1580,213 @@ const SpeedBot = observer(() => {
                             </div>
                         </div>
 
-                        <div className='bot-status' style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                            <div className='metric' style={{ background: '#1e293b' }}>
-                                <div className='label'>Last Result</div>
-                                <div className='value' style={{
-                                    color: lastResultDisplay === 'WIN' ? '#00d085' : lastResultDisplay === 'LOSS' ? '#ff444f' : '#fff'
-                                }}>
-                                    {lastResultDisplay || '—'}
+                        {/* Header: Run Button & Status */}
+                        <div className='activity-panel'>
+                            <button
+                                className={clsx('run-btn', isAutoTrading ? 'running' : '')}
+                                onClick={startAuto}
+                            >
+                                <div className='icon'>
+                                    {isAutoTrading ? (
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                            <rect x="6" y="6" width="12" height="12" rx="2" fill="white" />
+                                        </svg>
+                                    ) : (
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                            <path d="M8 5V19L19 12L8 5Z" fill="white" />
+                                        </svg>
+                                    )}
                                 </div>
-                            </div>
-                            <div className='metric' style={{ background: '#1e293b' }}>
-                                <div className='label'>Total Profit</div>
-                                <div className='value' style={{ color: totalProfit >= 0 ? '#00d085' : '#ff444f' }}>
-                                    {totalProfit >= 0 ? `+$${totalProfit.toFixed(2)}` : `-$${Math.abs(totalProfit).toFixed(2)}`}
+                                <span>{isAutoTrading ? 'Stop' : 'Run'}</span>
+                            </button>
+                            <div className='status-bar'>
+                                <div className='status-text'>
+                                    {isTrading
+                                        ? 'Contract running...'
+                                        : !isAutoTrading
+                                            ? 'Ready / Stopped'
+                                            : lastResultDisplay === 'WIN'
+                                                ? 'Contract won'
+                                                : lastResultDisplay === 'LOSS'
+                                                    ? 'Contract lost'
+                                                    : 'Waiting for entry...'}
                                 </div>
-                            </div>
-                            <div className='metric' style={{ background: '#1e293b' }}>
-                                <div className='label'>Wins</div>
-                                <div className='value' style={{ color: '#00d085' }}>{totalWins}</div>
-                            </div>
-                            <div className='metric' style={{ background: '#1e293b' }}>
-                                <div className='label'>Losses</div>
-                                <div className='value' style={{ color: '#ff444f' }}>{totalLosses}</div>
+                                <div className='progress-track'>
+                                    <div
+                                        className={clsx('progress-fill', isTrading && 'animating', lastResultDisplay === 'WIN' ? 'win' : lastResultDisplay === 'LOSS' ? 'loss' : '')}
+                                        style={{ width: isTrading ? '100%' : '0%' }}
+                                    ></div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Transactions List */}
-                        {transactions.length > 0 && (
-                            <div className='transactions-list' style={{ marginTop: '20px', fontSize: '12px' }}>
-                                <h4 style={{ color: '#c2c2c2', marginBottom: '10px' }}>Recent Transactions</h4>
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '8px',
-                                        maxHeight: '200px',
-                                        overflowY: 'auto',
-                                    }}
-                                >
-                                    {transactions.map(tx => (
-                                        <div
-                                            key={tx.id}
-                                            style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                padding: '8px',
-                                                backgroundColor: '#1b2028',
-                                                borderRadius: '4px',
-                                                borderLeft: `3px solid ${tx.status === 'won' ? '#00d085' : tx.status === 'lost' ? '#ff444f' : '#fbbf24'}`,
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                <span style={{ color: '#fff', fontWeight: 'bold' }}>{tx.contract_type.replace('DIGIT', '')}</span>
-                                                {tx.barrier !== undefined && (
-                                                    <span style={{ color: '#fbbf24', fontSize: '11px' }}>Pred: {tx.barrier}</span>
-                                                )}
-                                                {tx.exit_digit !== undefined && (
-                                                    <span style={{
-                                                        color: tx.status === 'won' ? '#00d085' : '#ff444f',
-                                                        fontSize: '11px',
-                                                        backgroundColor: 'rgba(0,0,0,0.3)',
-                                                        padding: '1px 4px',
-                                                        borderRadius: '3px'
-                                                    }}>
-                                                        Res: {tx.exit_digit}
-                                                    </span>
-                                                )}
-                                                <span style={{ color: '#8b9bb4', fontSize: '10px' }}>Ref: {tx.ref}</span>
+                        {/* Tabs */}
+                        <div className='sb-tabs'>
+                            <div
+                                className={clsx('sb-tab', activeTab === 'summary' && 'active')}
+                                onClick={() => setActiveTab('summary')}
+                            >
+                                Summary
+                            </div>
+                            <div
+                                className={clsx('sb-tab', activeTab === 'transactions' && 'active')}
+                                onClick={() => setActiveTab('transactions')}
+                            >
+                                Transactions
+                            </div>
+                            <div
+                                className={clsx('sb-tab', activeTab === 'journal' && 'active')}
+                                onClick={() => setActiveTab('journal')}
+                            >
+                                Journal
+                            </div>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className='sb-content'>
+                            {activeTab === 'summary' && (
+                                <div className='summary-view fade-in'>
+                                    {/* Summary view is now simpler, maybe just show the big stats or nothing? 
+                                        Leaving empty for now or could just show the footer stats here too. 
+                                        Actually, let's just make it show the "Bot Status" block which is currently removed? 
+                                        Wait, the bot status block was in the previous code but I replaced it. 
+                                        Let's re-add the bot status block here. 
+                                    */}
+                                    <div className='bot-status' style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div className='metric' style={{ background: '#1e293b' }}>
+                                            <div className='label'>Last Result</div>
+                                            <div className='value' style={{
+                                                color: lastResultDisplay === 'WIN' ? '#00d085' : lastResultDisplay === 'LOSS' ? '#ff444f' : '#fff'
+                                            }}>
+                                                {lastResultDisplay || '—'}
                                             </div>
-                                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                                <span style={{ color: '#fff' }}>${tx.stake}</span>
-                                                <div style={{ display: 'flex', gap: '6px' }}>
-                                                    <span
-                                                        style={{
-                                                            fontWeight: 'bold',
-                                                            color:
-                                                                tx.status === 'won'
-                                                                    ? '#00d085'
-                                                                    : tx.status === 'lost'
-                                                                        ? '#ff444f'
-                                                                        : '#fbbf24',
-                                                        }}
-                                                    >
-                                                        {tx.status === 'running'
-                                                            ? 'RUNNING'
-                                                            : tx.status === 'won'
-                                                                ? 'WIN'
-                                                                : 'LOSS'}
-                                                    </span>
-                                                    <span
-                                                        style={{
-                                                            fontWeight: 'bold',
-                                                            color:
-                                                                tx.status === 'won'
-                                                                    ? '#00d085'
-                                                                    : tx.status === 'lost'
-                                                                        ? '#ff444f'
-                                                                        : '#fbbf24',
-                                                        }}
-                                                    >
-                                                        {tx.status === 'running'
-                                                            ? '...'
-                                                            : tx.status === 'won'
-                                                                ? `+${tx.profit}`
-                                                                : `-${tx.stake}`}
-                                                    </span>
+                                        </div>
+                                        <div className='metric' style={{ background: '#1e293b' }}>
+                                            <div className='label'>Total Profit</div>
+                                            <div className='value' style={{ color: totalProfit >= 0 ? '#00d085' : '#ff444f' }}>
+                                                {totalProfit >= 0 ? `+$${totalProfit.toFixed(2)}` : `-$${Math.abs(totalProfit).toFixed(2)}`}
+                                            </div>
+                                        </div>
+                                        <div className='metric' style={{ background: '#1e293b' }}>
+                                            <div className='label'>Wins</div>
+                                            <div className='value' style={{ color: '#00d085' }}>{totalWins}</div>
+                                        </div>
+                                        <div className='metric' style={{ background: '#1e293b' }}>
+                                            <div className='label'>Losses</div>
+                                            <div className='value' style={{ color: '#ff444f' }}>{totalLosses}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'transactions' && (
+                                <div className='transactions-view fade-in'>
+                                    <div className='actions-bar'>
+                                        <button className='action-btn' disabled>Download</button>
+                                        <button className='action-btn' disabled>View Detail</button>
+                                    </div>
+
+                                    <div className='tx-table-header'>
+                                        <div>Type</div>
+                                        <div>Entry/Exit spot</div>
+                                        <div>Buy price and P/L</div>
+                                    </div>
+
+                                    <div className='tx-list'>
+                                        {transactions.map(tx => (
+                                            <div key={tx.id} className='tx-row'>
+                                                <div className='col-type'>
+                                                    <div className={clsx('dot-indicator', tx.status)}></div>
+                                                    {tx.contract_type.replace('DIGIT', '')}
+                                                </div>
+                                                <div className='col-spots'>
+                                                    {/* We don't have entry spot easily accessible in simple model, using placeholders or ref */}
+                                                    <div className='spot-row'>
+                                                        <span className='dot entry'></span>
+                                                        {tx.entry_digit !== undefined ? tx.entry_digit : '—'}
+                                                    </div>
+                                                    <div className='spot-row'>
+                                                        <span className={clsx('dot exit', tx.status)}></span>
+                                                        {tx.exit_digit !== undefined ? tx.exit_digit : '—'}
+                                                    </div>
+                                                </div>
+                                                <div className='col-pl'>
+                                                    <div className='stake'>{tx.stake.toFixed(2)} USD</div>
+                                                    <div className={clsx('profit', tx.status)}>
+                                                        {tx.status === 'won' ? `+${tx.profit}` : tx.status === 'lost' ? `-${tx.stake.toFixed(2)}` : '0.00'} USD
+                                                    </div>
+                                                </div>
+                                                {/* Hidden details for expansion could go here */}
+                                            </div>
+                                        ))}
+                                        {transactions.length === 0 && (
+                                            <div className='empty-state'>No transactions yet</div>
+                                        )}
+                                    </div>
+
+                                    <div className='tx-footer'>
+                                        <div className='stat-row'>
+                                            <div className='stat-item'>
+                                                <div className='label'>Total stake</div>
+                                                <div className='val'>{transactions.reduce((acc, t) => acc + t.stake, 0).toFixed(2)} USD</div>
+                                            </div>
+                                            <div className='stat-item'>
+                                                <div className='label'>Total payout</div>
+                                                <div className='val'>{transactions.reduce((acc, t) => acc + (t.status === 'won' ? t.payout : 0), 0).toFixed(2)} USD</div>
+                                            </div>
+                                            <div className='stat-item'>
+                                                <div className='label'>No. of runs</div>
+                                                <div className='val'>{transactions.length}</div>
+                                            </div>
+                                        </div>
+                                        <div className='stat-row'>
+                                            <div className='stat-item'>
+                                                <div className='label'>Contracts lost</div>
+                                                <div className='val'>{transactions.filter(t => t.status === 'lost').length}</div>
+                                            </div>
+                                            <div className='stat-item'>
+                                                <div className='label'>Contracts won</div>
+                                                <div className='val'>{transactions.filter(t => t.status === 'won').length}</div>
+                                            </div>
+                                            <div className='stat-item'>
+                                                <div className='label'>Total profit/loss</div>
+                                                <div className={clsx('val', totalProfit >= 0 ? 'win' : 'loss')}>
+                                                    {totalProfit.toFixed(2)} USD
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                        <button
+                                            className='reset-btn'
+                                            onClick={() => {
+                                                setTransactions([]);
+                                                setTotalProfit(0);
+                                                setTotalWins(0);
+                                                setTotalLosses(0);
+                                                setJournal([]);
+                                            }}
+                                        >
+                                            Reset
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        <div className='controls'>
-                            <button className='btn primary' onClick={() => tradeOnce()}>
-                                Trade Once
-                            </button>
-                            <button
-                                className={clsx('btn', isAutoTrading ? 'danger' : 'success')}
-                                onClick={startAuto}
-                            >
-                                {isAutoTrading ? 'Stop Auto Trading' : 'Start Auto Trading'}
-                            </button>
-                            <button
-                                className='btn secondary'
-                                onClick={() => {
-                                    setTransactions([]);
-                                    setJournal([]);
-                                }}
-                                style={{ marginLeft: '10px', fontSize: '11px', padding: '4px 8px' }}
-                            >
-                                Clear All
-                            </button>
-                        </div>
-
-                        {/* Journal Section */}
-                        <div className='speedbot-journal' style={{ marginTop: '24px' }}>
-                            <h4 style={{ color: '#2ea3f2', marginBottom: '8px', fontSize: '14px' }}>SpeedBot Journal</h4>
-                            <div style={{
-                                background: '#0d131f',
-                                borderRadius: '8px',
-                                padding: '10px',
-                                maxHeight: '150px',
-                                overflowY: 'auto',
-                                fontSize: '11px',
-                                border: '1px solid #1f3552'
-                            }}>
-                                {journal.length === 0 ? (
-                                    <div style={{ color: '#4a6a8c', textAlign: 'center', padding: '10px' }}>Waiting for activity...</div>
-                                ) : (
-                                    journal.map(entry => (
-                                        <div key={entry.id} style={{
-                                            borderLeft: `2px solid ${entry.type === 'success' ? '#22c55e' : entry.type === 'error' ? '#ff6b6b' : entry.type === 'trade' ? '#2ea3f2' : '#4a6a8c'}`,
-                                            paddingLeft: '8px',
-                                            marginBottom: '6px',
-                                            color: entry.type === 'success' ? '#34d399' : entry.type === 'error' ? '#ffbaba' : '#e6edf3'
-                                        }}>
-                                            <span style={{ opacity: 0.5, marginRight: '6px' }}>
-                                                {new Date(entry.timestamp).toLocaleTimeString([], { hour12: false })}
-                                            </span>
-                                            {entry.message}
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+                            {activeTab === 'journal' && (
+                                <div className='journal-view fade-in'>
+                                    {journal.length === 0 ? (
+                                        <div className='empty-state'>Waiting for activity...</div>
+                                    ) : (
+                                        journal.map(entry => (
+                                            <div key={entry.id} className={clsx('journal-entry', entry.type)}>
+                                                <span className='time'>
+                                                    {new Date(entry.timestamp).toLocaleTimeString([], { hour12: false })}
+                                                </span>
+                                                <span className='msg'>{entry.message}</span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </section>
                 </div>
