@@ -184,7 +184,7 @@ export default class RunPanelStore {
                 }
             }, 10000);
         }
-        const { summary_card, self_exclusion } = this.root_store;
+        const { summary_card, self_exclusion, dashboard } = this.root_store;
         const { client, ui } = this.core;
         const is_ios = mobileOSDetect() === 'iOS';
         this.dbot.saveRecentWorkspace();
@@ -213,6 +213,31 @@ export default class RunPanelStore {
         self_exclusion.setIsRestricted(false);
 
         this.registerBotListeners();
+
+        // Check if we're on the SpeedBot tab
+        const { SPEED_BOT } = require('@/constants/bot-contents').DBOT_TABS;
+        if (dashboard.active_tab === SPEED_BOT) {
+            // For SpeedBot, just emit the event and let SpeedBot handle it
+            ui?.setAccountSwitcherDisabledMessage(
+                localize(
+                    'Account switching is disabled while your bot is running. Please stop your bot before switching accounts.'
+                )
+            );
+            runInAction(() => {
+                this.setIsRunning(true);
+                ui.setPromptHandler(true);
+                this.toggleDrawer(true);
+                this.run_id = `run-${Date.now()}`;
+
+                summary_card.clear();
+                this.setContractStage(contract_stages.STARTING);
+
+                // Emit event for SpeedBot to handle
+                observer.emit('bot.running');
+            });
+            this.setShowBotStopMessage(false);
+            return;
+        }
 
         if (!this.dbot.shouldRunBot()) {
             this.unregisterBotListeners();

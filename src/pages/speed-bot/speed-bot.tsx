@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { observer } from 'mobx-react-lite';
-import { api_base, observer as botObserver } from '@/external/bot-skeleton';
+import { DBOT_TABS, TAB_IDS } from '@/constants/bot-contents';
+import { contract_stages } from '@/constants/contract-stage';
+import { api_base, observer as botObserver, updateWorkspaceName } from '@/external/bot-skeleton';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
 import './speed-bot.scss';
@@ -18,6 +20,14 @@ type Transaction = {
     timestamp: number;
     barrier?: number | string;
     exit_digit?: number;
+};
+
+// Journal Entry Type
+type JournalEntry = {
+    id: number;
+    message: string;
+    type: 'info' | 'success' | 'error' | 'trade';
+    timestamp: number;
 };
 
 const SpeedBot = observer(() => {
@@ -74,6 +84,7 @@ const SpeedBot = observer(() => {
     const [totalLosses, setTotalLosses] = useState(0);
     const [lastResultDisplay, setLastResultDisplay] = useState<'WIN' | 'LOSS' | null>(null);
     const [debugStatus, setDebugStatus] = useState('Idle');
+    const [journal, setJournal] = useState<JournalEntry[]>([]);
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -117,12 +128,21 @@ const SpeedBot = observer(() => {
     useEffect(() => { takeProfitEnabledRef.current = takeProfitEnabled; }, [takeProfitEnabled]);
     useEffect(() => { stopLossConsecutiveRef.current = stopLossConsecutive; }, [stopLossConsecutive]);
     useEffect(() => { stopLossConsecutiveEnabledRef.current = stopLossConsecutiveEnabled; }, [stopLossConsecutiveEnabled]);
-    const { connectionStatus } = useApiBase();
-    const { client, run_panel, summary_card, transactions: transactionsStore } = useStore();
+    const { connectionStatus, isAuthorized } = useApiBase();
+    const { client, run_panel, summary_card, transactions: transactionsStore, dashboard } = useStore();
 
     const showToast = useCallback((msg: string) => {
         setToastMessage(msg);
         setTimeout(() => setToastMessage(null), 2200);
+    }, []);
+
+    const addJournal = useCallback((msg: string, type: JournalEntry['type'] = 'info') => {
+        setJournal(prev => [{
+            id: Date.now() + Math.random(),
+            message: msg,
+            type,
+            timestamp: Date.now()
+        }, ...prev].slice(0, 100)); // Keep last 100
     }, []);
 
     const handleTradeCompletion = useCallback((poc: any, status: Transaction['status']) => {
@@ -134,11 +154,14 @@ const SpeedBot = observer(() => {
 
         if (activeContractIdsRef.current.size === 0) {
             setIsTrading(false);
-            setIsTradingRef.current = false;
+            isTradingRef.current = false;
         }
 
         const profitStr = poc.profit !== undefined ? Number(poc.profit).toFixed(2) : '0.00';
         const exitDigit = status === 'won' || status === 'lost' ? poc.exit_tick_display_value?.slice(-1) : null;
+
+        console.log(`[SpeedBot] Trade completed: ${status.toUpperCase()} | Profit: ${profitStr} | Digit: ${exitDigit}`);
+        addJournal(`Trade ${status.toUpperCase()}: Profit ${profitStr}${exitDigit ? `, Digit ${exitDigit}` : ''}`, status === 'won' ? 'success' : 'error');
 
         if (!isAutoTradingRef.current) {
             showToast(`Trade ${status.toUpperCase()}! ${exitDigit ? `Digit: ${exitDigit}` : ''} Profit: ${profitStr}`);
@@ -217,6 +240,316 @@ const SpeedBot = observer(() => {
         return ent.toFixed(2);
     };
 
+    // -- MOVED LOGIC START --
+    const checkEntryCondition = () => {
+        if (!entryEnabled) return true;
+
+        const lastDigits = digitHistoryRef.current;
+        if (lastDigits.length === 0) return false;
+
+        const latest = lastDigits[lastDigits.length - 1];
+
+        if (entryPoint === 'single') {
+            return latest === singleDigit;
+        }
+        if (entryPoint === 'double' && lastDigits.length >= 2) {
+            const prev = lastDigits[lastDigits.length - 2];
+            return (
+                prev >= digitRangeStart &&
+                prev <= digitRangeEnd &&
+                latest >= digitRangeStart &&
+                latest <= digitRangeEnd
+            );
+        }
+        if (entryPoint === 'last_even') {
+            return latest % 2 === 0;
+        }
+        if (entryPoint === 'last_odd') {
+            return latest % 2 !== 0;
+        }
+        if (entryPoint === 'last_five_even' && lastDigits.length >= 5) {
+            return lastDigits.slice(-5).every(d => d % 2 === 0);
+        }
+        if (entryPoint === 'even_percent') {
+            const evens = ldpStats.reduce((acc, count, d) => (d % 2 === 0 ? acc + count : acc), 0);
+            const total = ldpStats.reduce((acc, count) => acc + count, 0);
+            return total > 0 && evens / total >= 0.6;
+        }
+
+        return false;
+    };
+
+    const executeTrade = async (req: any, tradeStake: number, contract_type: string) => {
+        try {
+            console.log(`[SpeedBot] Requesting proposal:`, req);
+            setDebugStatus(`Proposal...`);
+            addJournal(`Requesting proposal for ${contract_type}...`, 'info');
+            run_panel.setContractStage(contract_stages.PURCHASE_SENT);
+
+            // 1. Get Proposal
+            const propRes: any = await api_base.api.send(req);
+
+            if (propRes.proposal) {
+                console.log(`[SpeedBot] Proposal received:`, propRes.proposal);
+                setDebugStatus(`Buy order...`);
+                addJournal(`Proposal received ($${propRes.proposal.ask_price}). Placing buy order...`, 'info');
+
+                const id = propRes.proposal.id;
+                // 2. Buy
+                const buyRes: any = await api_base.api.send({ buy: id, price: Number(propRes.proposal.ask_price) });
+
+                if (buyRes.buy) {
+                    console.log(`[SpeedBot] Buy successful:`, buyRes.buy);
+                    setDebugStatus(`Success!`);
+                    addJournal(`Buy successful: Contract ID ${buyRes.buy.contract_id}`, 'trade');
+                    run_panel.setContractStage(contract_stages.PURCHASE_RECEIVED);
+
+                    // Update balance optimistically
+                    client.updateBalanceOnTrade(tradeStake);
+
+                    setTransactions(prev => {
+                        // Check if handleMessage already added this transaction due to race condition
+                        if (prev.some(tx => String(tx.id) === String(buyRes.buy.contract_id))) return prev;
+
+                        const newTx: Transaction = {
+                            id: buyRes.buy.contract_id,
+                            ref: buyRes.buy.transaction_id,
+                            contract_type: contract_type,
+                            stake: tradeStake,
+                            payout: propRes.proposal.payout,
+                            profit: '0.00',
+                            status: 'running',
+                            timestamp: Date.now(),
+                            barrier: req.barrier
+                        };
+                        return [newTx, ...prev];
+                    });
+                    activeContractIdsRef.current.add(String(buyRes.buy.contract_id));
+
+                    // Emit events
+                    botObserver.emit('bot.running');
+                    botObserver.emit('contract.status', {
+                        id: 'contract.purchase_received',
+                        buy: buyRes.buy
+                    });
+
+                    // Subscribe to updates
+                    api_base.api.send({ proposal_open_contract: 1, contract_id: buyRes.buy.contract_id, subscribe: 1 });
+
+                    // Only show success toast for single trades to avoid spam
+                    if (!isAutoTrading && (!bulkEnabled || bulkTrades === 1)) {
+                        showToast('Trade placed successfully!');
+                    }
+                } else if (buyRes.error) {
+                    console.error(`[SpeedBot] Buy error:`, buyRes.error);
+                    showToast(buyRes.error.message);
+                    setDebugStatus(`Buy error: ${buyRes.error.code}`);
+                }
+            } else if (propRes.error) {
+                console.error(`[SpeedBot] Proposal error:`, propRes.error);
+                showToast(propRes.error.message);
+                setDebugStatus(`Proposal error: ${propRes.error.code}`);
+            }
+        } catch (e: any) {
+            console.error('[SpeedBot] Execution exception:', e);
+            showToast('Trade error: ' + (e.message || e));
+            setDebugStatus(`Exec exception`);
+        }
+    };
+
+    const tradeOnce = async (customStake?: number, customBarrier?: number) => {
+        try {
+            // Sanitize arguments to prevent Event objects from being passed as stake
+            // This fixes the "Converting circular structure to JSON" error if tradeOnce is called as an event handler
+            const safeStake = typeof customStake === 'number' ? customStake : undefined;
+            const safeBarrier = typeof customBarrier === 'number' ? customBarrier : undefined;
+
+            if (!api_base.api) {
+                showToast('API not ready');
+                return;
+            }
+
+            if (isTrading) return;
+
+            console.log('[SpeedBot] tradeOnce check:', {
+                is_virtual: client.is_virtual,
+                is_logged_in: client.is_logged_in,
+                isAuthorized,
+                api_exists: !!api_base.api
+            });
+
+            if (!client.is_virtual) {
+                showToast('Trading is restricted to Demo Accounts only.');
+                return;
+            }
+
+            if (!client.is_logged_in && !isAuthorized) {
+                showToast('Please wait for authorization...');
+                return;
+            }
+
+            if (!api_base.api) {
+                showToast('API instance not found. Reconnecting...');
+                api_base.init(true);
+                return;
+            }
+
+            // Enforce Entry Condition for Manual Trades too
+            if (entryEnabled && !checkEntryCondition()) {
+                showToast('Waiting for entry condition...');
+                setDebugStatus('Waiting for entry...');
+                return;
+            }
+
+            const symbol = getSymbol(volatility);
+            const contract_type = getContractType();
+            // Base Stake: usage depends on mode. For 'multi', we use individual stakes.
+            // For others, we use customStake (if auto martanigaling) or global 'stake'.
+            // UPDATE: If Martingale is enabled, 'Manual Trade' should probably use 'currentStake' 
+            // to continue the sequence, unless a specific customStake was passed (e.g. from specific card).
+            // If it's a "Global Trade Once", customStake is undefined.
+            const defaultStake = safeStake || (martingaleEnabled ? currentStake : stake);
+
+            const configs: { barrier?: number; stake: number }[] = [];
+
+            // 1. Determine Trade Configurations
+            // If customBarrier is provided, we are trading a SPECIFIC prediction (or single override)
+            if (safeBarrier !== undefined) {
+                configs.push({ barrier: safeBarrier, stake: defaultStake });
+            }
+            else if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
+                if (predictionMode === 'multi' && predictions.length > 0) {
+                    // Multi Mode: Trade ALL predictions with their specific stakes (unless customBarrier set)
+                    predictions.forEach(p => {
+                        configs.push({ barrier: p.digit, stake: p.stake });
+                    });
+                } else if (predictionMode === 'recovery') {
+                    // Recovery Mode Logic
+                    const val = consecutiveLosses > 0 ? Number(predPost) : Number(predPre);
+                    configs.push({ barrier: val, stake: defaultStake });
+                } else {
+                    // Single / Default
+                    configs.push({ barrier: singleDigit, stake: defaultStake });
+                }
+            } else {
+                // Non-Digit Trades (Even/Odd etc)
+                configs.push({ stake: defaultStake });
+            }
+
+            const baseReq: any = {
+                proposal: 1,
+                basis: 'stake',
+                contract_type: contract_type,
+                currency: client.currency || 'USD',
+                duration: ticks,
+                duration_unit: 't',
+                symbol: symbol,
+            };
+
+            setIsTrading(true);
+            isTradingRef.current = true;
+
+            let count = 1;
+            if (bulkEnabled) {
+                // Restrict bulk trading to 'single' mode only for Digit Trades,
+                // OR if we are forcing a single prediction trade (customBarrier)
+                const isDigitTrade = ['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type);
+                if (!isDigitTrade || predictionMode === 'single' || safeBarrier !== undefined) {
+                    count = bulkTrades;
+                }
+            }
+
+            const totalTrades = count * configs.length;
+            console.log(`[SpeedBot] Preparing to execute ${totalTrades} trades. Configs:`, configs);
+
+            if (totalTrades === 0) {
+                setDebugStatus('No trades to run (Config empty)');
+                setIsTrading(false);
+                isTradingRef.current = false;
+                return;
+            }
+
+            if (!isAutoTrading) {
+                showToast(totalTrades > 1 ? `Placing ${totalTrades} trades...` : 'Placing trade...');
+            }
+
+            const promises = [];
+            for (let i = 0; i < count; i++) {
+                for (const cfg of configs) {
+                    const specificReq = { ...baseReq, amount: cfg.stake };
+                    if (cfg.barrier !== undefined) specificReq.barrier = cfg.barrier;
+                    promises.push(executeTrade(specificReq, cfg.stake, contract_type));
+                }
+            }
+
+            setDebugStatus(`Executing ${totalTrades} trade(s)...`);
+
+            await Promise.all(promises);
+        } catch (e: any) {
+            console.error('[SpeedBot] tradeOnce Critical Error:', e);
+            showToast('System Error: ' + (e.message || e));
+            setDebugStatus('System Error');
+        } finally {
+            // Final check: if no active contracts left, ensure isTrading is false
+            if (activeContractIdsRef.current.size === 0) {
+                setIsTrading(false);
+                isTradingRef.current = false;
+                setDebugStatus('Ready');
+            }
+        }
+    };
+
+    const startAuto = useCallback(() => {
+        if (isAutoTrading) {
+            setIsAutoTrading(false);
+            showToast('Auto Trading Stopped');
+            botObserver.emit('bot.stop');
+            run_panel.setIsRunning(false);
+            return;
+        }
+
+        console.log('[SpeedBot] startAuto check:', {
+            is_virtual: client.is_virtual,
+            is_logged_in: client.is_logged_in,
+            isAuthorized,
+            api_exists: !!api_base.api
+        });
+
+        if (!client.is_virtual) {
+            showToast('Auto Trading is restricted to Demo Accounts only.');
+            return;
+        }
+
+        if (!client.is_logged_in && !isAuthorized) {
+            showToast('Please wait for authorization...');
+            return;
+        }
+
+        if (!api_base.api) {
+            showToast('API instance not found. Reconnecting...');
+            api_base.init(true);
+            return;
+        }
+
+        // Reset stats
+        setConsecutiveLosses(0);
+        setCurrentStake(stake);
+        setTotalProfit(0);
+        setTotalWins(0);
+        setTotalLosses(0);
+        setLastResultDisplay(null);
+        lastResultRef.current = null;
+        activeContractIdsRef.current.clear();
+        setIsTrading(false);
+
+        setIsAutoTrading(true);
+        showToast('Auto Trading Started');
+        botObserver.emit('bot.running');
+        run_panel.setIsRunning(true);
+        run_panel.setContractStage(contract_stages.STARTING);
+    }, [isAutoTrading, client.is_virtual, client.is_logged_in, isAuthorized, showToast, stake, run_panel]);
+
+    // -- MOVED LOGIC END --
     const runAutoEngine = useCallback(() => {
         if (!isAutoTradingRef.current || isTradingRef.current) return;
 
@@ -242,7 +575,10 @@ const SpeedBot = observer(() => {
 
         // Check Entry and Execute
         if (checkEntryCondition()) {
+            setDebugStatus('Entry condition met! Trading...');
             tradeOnce(currentStakeRef.current);
+        } else {
+            setDebugStatus('Waiting for entry condition...');
         }
     }, []); // Empty deps because it uses refs
 
@@ -503,6 +839,8 @@ const SpeedBot = observer(() => {
     useEffect(() => {
         if (!api_base.api) return;
 
+        const isEnded = (poc: any) => poc.is_sold || poc.status === 'won' || poc.status === 'lost' || poc.status === 'sold';
+
         const handleMessage = (response: any) => {
             if (response.proposal_open_contract) {
                 const poc = response.proposal_open_contract;
@@ -566,14 +904,51 @@ const SpeedBot = observer(() => {
                     handleTradeCompletion(poc, statusToProcess);
                 }
 
+                // Normalize for global stores (ensure both id and contract_id are present)
+                const normalizedPoc = {
+                    ...poc,
+                    id: poc.contract_id,
+                    contract_id: poc.contract_id,
+                };
+
                 // Sync with main app
-                botObserver.emit('bot.contract', poc);
+                botObserver.emit('bot.contract', normalizedPoc);
+
+                if (isEnded(poc)) {
+                    run_panel.setContractStage(contract_stages.CONTRACT_CLOSED);
+                }
+            }
+        };
+        const sub = api_base.api.onMessage().subscribe(handleMessage);
+        return () => sub.unsubscribe();
+    }, [connectionStatus, run_panel]);
+
+    // Listen for global Run/Stop button clicks
+    useEffect(() => {
+        const handleGlobalRun = () => {
+            console.log('[SpeedBot] Global Run button clicked');
+            // Only respond if we're on the SpeedBot tab and not already running
+            if (dashboard.active_tab === DBOT_TABS.SPEED_BOT && !isAutoTrading) {
+                startAuto();
             }
         };
 
-        const sub = api_base.api.onMessage().subscribe(handleMessage);
-        return () => sub.unsubscribe();
-    }, [connectionStatus]);
+        const handleGlobalStop = () => {
+            console.log('[SpeedBot] Global Stop button clicked');
+            // Only respond if we're on the SpeedBot tab and currently running
+            if (dashboard.active_tab === DBOT_TABS.SPEED_BOT && isAutoTrading) {
+                startAuto(); // This will stop since isAutoTrading is true
+            }
+        };
+
+        botObserver.register('bot.running', handleGlobalRun);
+        botObserver.register('bot.click_stop', handleGlobalStop);
+
+        return () => {
+            botObserver.unregisterAll('bot.running');
+            botObserver.unregisterAll('bot.click_stop');
+        };
+    }, [dashboard.active_tab, isAutoTrading, startAuto]);
 
     // -- UI Handlers --
     const handleTradeTypeChange = (val: string) => {
@@ -608,43 +983,7 @@ const SpeedBot = observer(() => {
     };
 
 
-    const checkEntryCondition = () => {
-        if (!entryEnabled) return true;
 
-        const lastDigits = digitHistoryRef.current;
-        if (lastDigits.length === 0) return false;
-
-        const latest = lastDigits[lastDigits.length - 1];
-
-        if (entryPoint === 'single') {
-            return latest === singleDigit;
-        }
-        if (entryPoint === 'double' && lastDigits.length >= 2) {
-            const prev = lastDigits[lastDigits.length - 2];
-            return (
-                prev >= digitRangeStart &&
-                prev <= digitRangeEnd &&
-                latest >= digitRangeStart &&
-                latest <= digitRangeEnd
-            );
-        }
-        if (entryPoint === 'last_even') {
-            return latest % 2 === 0;
-        }
-        if (entryPoint === 'last_odd') {
-            return latest % 2 !== 0;
-        }
-        if (entryPoint === 'last_five_even' && lastDigits.length >= 5) {
-            return lastDigits.slice(-5).every(d => d % 2 === 0);
-        }
-        if (entryPoint === 'even_percent') {
-            const evens = ldpStats.reduce((acc, count, d) => (d % 2 === 0 ? acc + count : acc), 0);
-            const total = ldpStats.reduce((acc, count) => acc + count, 0);
-            return total > 0 && evens / total >= 0.6;
-        }
-
-        return false;
-    };
 
     const handleDigitClick = (d: number) => {
         showToast(`Digit ${d} selected!`);
@@ -659,186 +998,11 @@ const SpeedBot = observer(() => {
         }
     };
 
-    const executeTrade = async (req: any, tradeStake: number, contract_type: string) => {
-        try {
-            // 1. Get Proposal
-            const propRes: any = await api_base.api.send(req);
-            if (propRes.proposal) {
-                const id = propRes.proposal.id;
-                // 2. Buy
-                const buyRes: any = await api_base.api.send({ buy: id, price: Number(propRes.proposal.ask_price) });
-                if (buyRes.buy) {
-                    setTransactions(prev => {
-                        // Check if handleMessage already added this transaction due to race condition
-                        if (prev.some(tx => String(tx.id) === String(buyRes.buy.contract_id))) return prev;
 
-                        const newTx: Transaction = {
-                            id: buyRes.buy.contract_id,
-                            ref: buyRes.buy.transaction_id,
-                            contract_type: contract_type,
-                            stake: tradeStake,
-                            payout: propRes.proposal.payout,
-                            profit: '0.00',
-                            status: 'running',
-                            timestamp: Date.now(),
-                            barrier: req.barrier
-                        };
-                        return [newTx, ...prev];
-                    });
-                    activeContractIdsRef.current.add(String(buyRes.buy.contract_id));
 
-                    // Emit events
-                    botObserver.emit('bot.running');
-                    botObserver.emit('contract.status', {
-                        id: 'contract.purchase_received',
-                        buy: buyRes.buy
-                    });
 
-                    // Subscribe to updates
-                    api_base.api.send({ proposal_open_contract: 1, contract_id: buyRes.buy.contract_id, subscribe: 1 });
 
-                    // Only show success toast for single trades to avoid spam
-                    if (!isAutoTrading && (!bulkEnabled || bulkTrades === 1)) {
-                        showToast('Trade placed successfully!');
-                    }
-                } else if (buyRes.error) {
-                    showToast(buyRes.error.message);
-                }
-            } else if (propRes.error) {
-                showToast(propRes.error.message);
-            }
-        } catch (e: any) {
-            showToast('Trade error: ' + (e.message || e));
-        }
-    };
 
-    const tradeOnce = async (customStake?: number, customBarrier?: number) => {
-        // Sanitize arguments to prevent Event objects from being passed as stake
-        // This fixes the "Converting circular structure to JSON" error if tradeOnce is called as an event handler
-        const safeStake = typeof customStake === 'number' ? customStake : undefined;
-        const safeBarrier = typeof customBarrier === 'number' ? customBarrier : undefined;
-
-        if (!api_base.api) {
-            showToast('API not ready');
-            return;
-        }
-
-        if (isTrading) return;
-
-        // Enforce Entry Condition for Manual Trades too
-        if (entryEnabled && !checkEntryCondition()) {
-            if (!isAutoTrading) {
-                showToast('Waiting for entry condition...');
-                setDebugStatus('Waiting for entry...');
-            }
-            return;
-        }
-
-        const symbol = getSymbol(volatility);
-        const contract_type = getContractType();
-        // Base Stake: usage depends on mode. For 'multi', we use individual stakes.
-        // For others, we use customStake (if auto martanigaling) or global 'stake'.
-        // UPDATE: If Martingale is enabled, 'Manual Trade' should probably use 'currentStake' 
-        // to continue the sequence, unless a specific customStake was passed (e.g. from specific card).
-        // If it's a "Global Trade Once", customStake is undefined.
-        const defaultStake = safeStake || (martingaleEnabled ? currentStake : stake);
-
-        const configs: { barrier?: number; stake: number }[] = [];
-
-        // 1. Determine Trade Configurations
-        // If customBarrier is provided, we are trading a SPECIFIC prediction (or single override)
-        if (safeBarrier !== undefined) {
-            configs.push({ barrier: safeBarrier, stake: defaultStake });
-        }
-        else if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
-            if (predictionMode === 'multi' && predictions.length > 0) {
-                // Multi Mode: Trade ALL predictions with their specific stakes (unless customBarrier set)
-                predictions.forEach(p => {
-                    configs.push({ barrier: p.digit, stake: p.stake });
-                });
-            } else if (predictionMode === 'recovery') {
-                // Recovery Mode Logic
-                const val = consecutiveLosses > 0 ? Number(predPost) : Number(predPre);
-                configs.push({ barrier: val, stake: defaultStake });
-            } else {
-                // Single / Default
-                configs.push({ barrier: singleDigit, stake: defaultStake });
-            }
-        } else {
-            // Non-Digit Trades (Even/Odd etc)
-            configs.push({ stake: defaultStake });
-        }
-
-        const baseReq: any = {
-            proposal: 1,
-            basis: 'stake',
-            contract_type: contract_type,
-            currency: client.currency || 'USD',
-            duration: ticks,
-            duration_unit: 't',
-            symbol: symbol,
-        };
-
-        setIsTrading(true);
-        setIsTradingRef.current = true;
-
-        let count = 1;
-        if (bulkEnabled) {
-            // Restrict bulk trading to 'single' mode only for Digit Trades,
-            // OR if we are forcing a single prediction trade (customBarrier)
-            const isDigitTrade = ['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type);
-            if (!isDigitTrade || predictionMode === 'single' || safeBarrier !== undefined) {
-                count = bulkTrades;
-            }
-        }
-
-        const totalTrades = count * configs.length;
-
-        if (!isAutoTrading) {
-            showToast(totalTrades > 1 ? `Placing ${totalTrades} trades...` : 'Placing trade...');
-        }
-
-        const promises = [];
-        for (let i = 0; i < count; i++) {
-            for (const cfg of configs) {
-                const specificReq = { ...baseReq, amount: cfg.stake };
-                if (cfg.barrier !== undefined) specificReq.barrier = cfg.barrier;
-                promises.push(executeTrade(specificReq, cfg.stake, contract_type));
-            }
-        }
-
-        await Promise.all(promises);
-
-        // Final check: if no active contracts left, ensure isTrading is false
-        if (activeContractIdsRef.current.size === 0) {
-            setIsTrading(false);
-            setIsTradingRef.current = false;
-        }
-    };
-
-    const startAuto = () => {
-        if (isAutoTrading) {
-            setIsAutoTrading(false);
-            showToast('Auto Trading Stopped');
-            botObserver.emit('bot.stop');
-            return;
-        }
-
-        // Reset stats
-        setConsecutiveLosses(0);
-        setCurrentStake(stake);
-        setTotalProfit(0);
-        setTotalWins(0);
-        setTotalLosses(0);
-        setLastResultDisplay(null);
-        lastResultRef.current = null;
-        activeContractIdsRef.current.clear();
-        setIsTrading(false);
-
-        setIsAutoTrading(true);
-        showToast('Auto Trading Started');
-        botObserver.emit('bot.running');
-    };
 
     // -- Result Processing (Manual & Auto) --
     // Handled in Transaction Monitor via handleMessage for speed and reliability.
@@ -1438,11 +1602,46 @@ const SpeedBot = observer(() => {
                             </button>
                             <button
                                 className='btn secondary'
-                                onClick={() => setTransactions([])}
+                                onClick={() => {
+                                    setTransactions([]);
+                                    setJournal([]);
+                                }}
                                 style={{ marginLeft: '10px', fontSize: '11px', padding: '4px 8px' }}
                             >
-                                Clear Log
+                                Clear All
                             </button>
+                        </div>
+
+                        {/* Journal Section */}
+                        <div className='speedbot-journal' style={{ marginTop: '24px' }}>
+                            <h4 style={{ color: '#2ea3f2', marginBottom: '8px', fontSize: '14px' }}>SpeedBot Journal</h4>
+                            <div style={{
+                                background: '#0d131f',
+                                borderRadius: '8px',
+                                padding: '10px',
+                                maxHeight: '150px',
+                                overflowY: 'auto',
+                                fontSize: '11px',
+                                border: '1px solid #1f3552'
+                            }}>
+                                {journal.length === 0 ? (
+                                    <div style={{ color: '#4a6a8c', textAlign: 'center', padding: '10px' }}>Waiting for activity...</div>
+                                ) : (
+                                    journal.map(entry => (
+                                        <div key={entry.id} style={{
+                                            borderLeft: `2px solid ${entry.type === 'success' ? '#22c55e' : entry.type === 'error' ? '#ff6b6b' : entry.type === 'trade' ? '#2ea3f2' : '#4a6a8c'}`,
+                                            paddingLeft: '8px',
+                                            marginBottom: '6px',
+                                            color: entry.type === 'success' ? '#34d399' : entry.type === 'error' ? '#ffbaba' : '#e6edf3'
+                                        }}>
+                                            <span style={{ opacity: 0.5, marginRight: '6px' }}>
+                                                {new Date(entry.timestamp).toLocaleTimeString([], { hour12: false })}
+                                            </span>
+                                            {entry.message}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
                         </div>
                     </section>
                 </div>
