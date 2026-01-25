@@ -21,6 +21,8 @@ type Transaction = {
     barrier?: number | string;
     entry_digit?: number;
     exit_digit?: number;
+    batch_id?: number;
+    batch_size?: number;
 };
 
 
@@ -30,6 +32,9 @@ type JournalEntry = {
     message: string;
     type: 'info' | 'success' | 'error' | 'trade';
     timestamp: number;
+    is_demo?: boolean;
+    volatility?: string;
+    barrier?: number | string;
 };
 
 const SpeedBot = observer(() => {
@@ -96,6 +101,8 @@ const SpeedBot = observer(() => {
     const liveDigitsBufferRef = useRef<{ value: number; color: string }[]>([]);
     const ldpCellsRef = useRef<(HTMLDivElement | null)[]>([]);
 
+    const pendingBatchRef = useRef<Map<string, { id: number, size: number }>>(new Map());
+
     const digitHistoryRef = useRef<number[]>([]);
     const lastResultRef = useRef<'won' | 'lost' | null>(null);
     const activeContractIdsRef = useRef<Set<string>>(new Set());
@@ -116,6 +123,39 @@ const SpeedBot = observer(() => {
     const takeProfitEnabledRef = useRef(takeProfitEnabled);
     const stopLossConsecutiveRef = useRef(stopLossConsecutive);
     const stopLossConsecutiveEnabledRef = useRef(stopLossConsecutiveEnabled);
+
+    // -- New Refs for Config to fix stale closures --
+    const volatilityRef = useRef(volatility);
+    const tradeTypeRef = useRef(tradeType);
+    const ticksRef = useRef(ticks);
+    const bulkEnabledRef = useRef(bulkEnabled);
+    const bulkTradesRef = useRef(bulkTrades);
+    const entryEnabledRef = useRef(entryEnabled);
+    const entryPointRef = useRef(entryPoint);
+    const digitRangeStartRef = useRef(digitRangeStart);
+    const digitRangeEndRef = useRef(digitRangeEnd);
+    const predictionModeRef = useRef(predictionMode);
+    const singleDigitRef = useRef(singleDigit);
+    const singleStakeRef = useRef(singleStake);
+    const predPreRef = useRef(predPre);
+    const predPostRef = useRef(predPost);
+    const predictionsRef = useRef(predictions);
+
+    useEffect(() => { volatilityRef.current = volatility; }, [volatility]);
+    useEffect(() => { tradeTypeRef.current = tradeType; }, [tradeType]);
+    useEffect(() => { ticksRef.current = ticks; }, [ticks]);
+    useEffect(() => { bulkEnabledRef.current = bulkEnabled; }, [bulkEnabled]);
+    useEffect(() => { bulkTradesRef.current = bulkTrades; }, [bulkTrades]);
+    useEffect(() => { entryEnabledRef.current = entryEnabled; }, [entryEnabled]);
+    useEffect(() => { entryPointRef.current = entryPoint; }, [entryPoint]);
+    useEffect(() => { digitRangeStartRef.current = digitRangeStart; }, [digitRangeStart]);
+    useEffect(() => { digitRangeEndRef.current = digitRangeEnd; }, [digitRangeEnd]);
+    useEffect(() => { predictionModeRef.current = predictionMode; }, [predictionMode]);
+    useEffect(() => { singleDigitRef.current = singleDigit; }, [singleDigit]);
+    useEffect(() => { singleStakeRef.current = singleStake; }, [singleStake]);
+    useEffect(() => { predPreRef.current = predPre; }, [predPre]);
+    useEffect(() => { predPostRef.current = predPost; }, [predPost]);
+    useEffect(() => { predictionsRef.current = predictions; }, [predictions]);
 
     useEffect(() => { isAutoTradingRef.current = isAutoTrading; }, [isAutoTrading]);
     useEffect(() => { martingaleEnabledRef.current = martingaleEnabled; }, [martingaleEnabled]);
@@ -139,14 +179,17 @@ const SpeedBot = observer(() => {
         setTimeout(() => setToastMessage(null), 2200);
     }, []);
 
-    const addJournal = useCallback((msg: string, type: JournalEntry['type'] = 'info') => {
+    const addJournal = useCallback((msg: string, type: JournalEntry['type'] = 'info', barrier?: number | string) => {
         setJournal(prev => [{
             id: Date.now() + Math.random(),
             message: msg,
             type,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            is_demo: client.is_virtual,
+            volatility: volatilityRef.current,
+            barrier
         }, ...prev].slice(0, 100)); // Keep last 100
-    }, []);
+    }, [client.is_virtual]); // volatilityRef.current is used, so no need to depend on volatility state
 
     const handleTradeCompletion = useCallback((poc: any, status: Transaction['status']) => {
         const contractId = String(poc.contract_id);
@@ -223,11 +266,12 @@ const SpeedBot = observer(() => {
     };
 
     const getContractType = () => {
-        if (tradeType === 'DIGITDIFF') return 'DIGITDIFF';
-        if (tradeType === 'DIGITEVEN') return 'DIGITEVEN';
-        if (tradeType === 'DIGITODD') return 'DIGITODD';
-        if (tradeType === 'DIGITOVER') return 'DIGITOVER';
-        if (tradeType === 'DIGITUNDER') return 'DIGITUNDER';
+        const type = tradeTypeRef.current;
+        if (type === 'DIGITDIFF') return 'DIGITDIFF';
+        if (type === 'DIGITEVEN') return 'DIGITEVEN';
+        if (type === 'DIGITODD') return 'DIGITODD';
+        if (type === 'DIGITOVER') return 'DIGITOVER';
+        if (type === 'DIGITUNDER') return 'DIGITUNDER';
         return 'DIGITMATCH';
     };
 
@@ -245,35 +289,37 @@ const SpeedBot = observer(() => {
 
     // -- MOVED LOGIC START --
     const checkEntryCondition = () => {
-        if (!entryEnabled) return true;
+        if (!entryEnabledRef.current) return true;
 
         const lastDigits = digitHistoryRef.current;
         if (lastDigits.length === 0) return false;
 
         const latest = lastDigits[lastDigits.length - 1];
 
-        if (entryPoint === 'single') {
-            return latest === singleDigit;
+        if (entryPointRef.current === 'single') {
+            return latest === singleDigitRef.current;
         }
-        if (entryPoint === 'double' && lastDigits.length >= 2) {
+        if (entryPointRef.current === 'double' && lastDigits.length >= 2) {
             const prev = lastDigits[lastDigits.length - 2];
+            const start = digitRangeStartRef.current;
+            const end = digitRangeEndRef.current;
             return (
-                prev >= digitRangeStart &&
-                prev <= digitRangeEnd &&
-                latest >= digitRangeStart &&
-                latest <= digitRangeEnd
+                prev >= start &&
+                prev <= end &&
+                latest >= start &&
+                latest <= end
             );
         }
-        if (entryPoint === 'last_even') {
+        if (entryPointRef.current === 'last_even') {
             return latest % 2 === 0;
         }
-        if (entryPoint === 'last_odd') {
+        if (entryPointRef.current === 'last_odd') {
             return latest % 2 !== 0;
         }
-        if (entryPoint === 'last_five_even' && lastDigits.length >= 5) {
+        if (entryPointRef.current === 'last_five_even' && lastDigits.length >= 5) {
             return lastDigits.slice(-5).every(d => d % 2 === 0);
         }
-        if (entryPoint === 'even_percent') {
+        if (entryPointRef.current === 'even_percent') {
             const evens = ldpStats.reduce((acc, count, d) => (d % 2 === 0 ? acc + count : acc), 0);
             const total = ldpStats.reduce((acc, count) => acc + count, 0);
             return total > 0 && evens / total >= 0.6;
@@ -282,20 +328,24 @@ const SpeedBot = observer(() => {
         return false;
     };
 
-    const executeTrade = async (req: any, tradeStake: number, contract_type: string) => {
+    const executeTrade = async (req: any, tradeStake: number, contract_type: string, prefetchedProposal?: any, batchId?: number, batchSize?: number) => {
         try {
-            console.log(`[SpeedBot] Requesting proposal:`, req);
-            setDebugStatus(`Proposal...`);
-            addJournal(`Requesting proposal for ${contract_type}...`, 'info');
-            run_panel.setContractStage(contract_stages.PURCHASE_SENT);
+            let propRes = prefetchedProposal;
 
-            // 1. Get Proposal
-            const propRes: any = await api_base.api.send(req);
+            if (!propRes) {
+                console.log(`[SpeedBot] Requesting proposal:`, req);
+                setDebugStatus(`Proposal...`);
+                addJournal(`Requesting proposal for ${contract_type}...`, 'info', req.barrier);
+                run_panel.setContractStage(contract_stages.PURCHASE_SENT);
+
+                // 1. Get Proposal
+                propRes = await api_base.api.send(req);
+            }
 
             if (propRes.proposal) {
                 console.log(`[SpeedBot] Proposal received:`, propRes.proposal);
                 setDebugStatus(`Buy order...`);
-                addJournal(`Proposal received ($${propRes.proposal.ask_price}). Placing buy order...`, 'info');
+                addJournal(`Proposal received ($${propRes.proposal.ask_price}). Placing buy order...`, 'info', req.barrier);
 
                 const id = propRes.proposal.id;
                 // 2. Buy
@@ -304,15 +354,22 @@ const SpeedBot = observer(() => {
                 if (buyRes.buy) {
                     console.log(`[SpeedBot] Buy successful:`, buyRes.buy);
                     setDebugStatus(`Success!`);
-                    addJournal(`Buy successful: Contract ID ${buyRes.buy.contract_id}`, 'trade');
+                    addJournal(`Buy successful: Contract ID ${buyRes.buy.contract_id}`, 'trade', req.barrier);
                     run_panel.setContractStage(contract_stages.PURCHASE_RECEIVED);
 
                     // Update balance optimistically
                     client.updateBalanceOnTrade(tradeStake);
 
                     setTransactions(prev => {
-                        // Check if handleMessage already added this transaction due to race condition
-                        if (prev.some(tx => String(tx.id) === String(buyRes.buy.contract_id))) return prev;
+                        const existing = prev.find(tx => String(tx.id) === String(buyRes.buy.contract_id));
+                        if (existing) {
+                            // If already exists (added by handleMessage), just update batch info if missing
+                            if (existing.batch_id) return prev;
+                            return prev.map(tx => String(tx.id) === String(buyRes.buy.contract_id)
+                                ? { ...tx, batch_id: batchId, batch_size: batchSize }
+                                : tx
+                            );
+                        }
 
                         const newTx: Transaction = {
                             id: buyRes.buy.contract_id,
@@ -323,10 +380,16 @@ const SpeedBot = observer(() => {
                             profit: '0.00',
                             status: 'running',
                             timestamp: Date.now(),
-                            barrier: req.barrier
+                            barrier: req.barrier,
+                            batch_id: batchId,
+                            batch_size: batchSize
                         };
                         return [newTx, ...prev];
                     });
+
+                    if (batchId) {
+                        pendingBatchRef.current.set(String(buyRes.buy.contract_id), { id: batchId, size: batchSize || 1 });
+                    }
                     activeContractIdsRef.current.add(String(buyRes.buy.contract_id));
 
                     // Emit events
@@ -395,10 +458,12 @@ const SpeedBot = observer(() => {
                 api_exists: !!api_base.api
             });
 
-            if (!client.is_virtual) {
+
+            // REMOVED Virtual Account Check
+            /*if (!client.is_virtual) {
                 showToast('Trading is restricted to Demo Accounts only.');
                 return;
-            }
+            }*/
 
             if (!client.is_logged_in && !isAuthorized) {
                 showToast('Please wait for authorization...');
@@ -412,20 +477,20 @@ const SpeedBot = observer(() => {
             }
 
             // Enforce Entry Condition for Manual Trades too
-            if (entryEnabled && !checkEntryCondition()) {
+            if (entryEnabledRef.current && !checkEntryCondition()) {
                 showToast('Waiting for entry condition...');
                 setDebugStatus('Waiting for entry...');
                 return;
             }
 
-            const symbol = getSymbol(volatility);
+            const symbol = getSymbol(volatilityRef.current);
             const contract_type = getContractType();
             // Base Stake: usage depends on mode. For 'multi', we use individual stakes.
             // For others, we use customStake (if auto martanigaling) or global 'stake'.
             // UPDATE: If Martingale is enabled, 'Manual Trade' should probably use 'currentStake' 
             // to continue the sequence, unless a specific customStake was passed (e.g. from specific card).
             // If it's a "Global Trade Once", customStake is undefined.
-            const defaultStake = safeStake || (martingaleEnabled ? currentStake : stake);
+            const defaultStake = safeStake || (martingaleEnabledRef.current ? currentStakeRef.current : stakeRef.current);
 
             const configs: { barrier?: number; stake: number }[] = [];
 
@@ -435,18 +500,18 @@ const SpeedBot = observer(() => {
                 configs.push({ barrier: safeBarrier, stake: defaultStake });
             }
             else if (['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type)) {
-                if (predictionMode === 'multi' && predictions.length > 0) {
+                if (predictionModeRef.current === 'multi' && predictionsRef.current.length > 0) {
                     // Multi Mode: Trade ALL predictions with their specific stakes (unless customBarrier set)
-                    predictions.forEach(p => {
+                    predictionsRef.current.forEach(p => {
                         configs.push({ barrier: p.digit, stake: p.stake });
                     });
-                } else if (predictionMode === 'recovery') {
+                } else if (predictionModeRef.current === 'recovery') {
                     // Recovery Mode Logic
-                    const val = consecutiveLosses > 0 ? Number(predPost) : Number(predPre);
+                    const val = consecutiveLossesRef.current > 0 ? Number(predPostRef.current) : Number(predPreRef.current);
                     configs.push({ barrier: val, stake: defaultStake });
                 } else {
                     // Single / Default
-                    configs.push({ barrier: singleDigit, stake: defaultStake });
+                    configs.push({ barrier: singleDigitRef.current, stake: defaultStake });
                 }
             } else {
                 // Non-Digit Trades (Even/Odd etc)
@@ -458,7 +523,7 @@ const SpeedBot = observer(() => {
                 basis: 'stake',
                 contract_type: contract_type,
                 currency: client.currency || 'USD',
-                duration: ticks,
+                duration: ticksRef.current,
                 duration_unit: 't',
                 symbol: symbol,
             };
@@ -467,13 +532,8 @@ const SpeedBot = observer(() => {
             isTradingRef.current = true;
 
             let count = 1;
-            if (bulkEnabled) {
-                // Restrict bulk trading to 'single' mode only for Digit Trades,
-                // OR if we are forcing a single prediction trade (customBarrier)
-                const isDigitTrade = ['DIGITMATCH', 'DIGITDIFF', 'DIGITOVER', 'DIGITUNDER'].includes(contract_type);
-                if (!isDigitTrade || predictionMode === 'single' || safeBarrier !== undefined) {
-                    count = bulkTrades;
-                }
+            if (bulkEnabledRef.current) {
+                count = bulkTradesRef.current;
             }
 
             const totalTrades = count * configs.length;
@@ -490,18 +550,47 @@ const SpeedBot = observer(() => {
                 showToast(totalTrades > 1 ? `Placing ${totalTrades} trades...` : 'Placing trade...');
             }
 
-            const promises = [];
+            setDebugStatus(`Preparing ${totalTrades} trade(s)...`);
+
+            // Phase 1: Get all proposals in parallel if bulkEnabled
+            const configReqs = [];
             for (let i = 0; i < count; i++) {
                 for (const cfg of configs) {
-                    const specificReq = { ...baseReq, amount: cfg.stake };
+                    const specificReq = {
+                        ...baseReq,
+                        amount: cfg.stake,
+                        // Add unique passthrough to force unique proposal IDs for each contract in the batch
+                        passthrough: { batch_idx: i, batch_id: Date.now() }
+                    };
                     if (cfg.barrier !== undefined) specificReq.barrier = cfg.barrier;
-                    promises.push(executeTrade(specificReq, cfg.stake, contract_type));
+                    configReqs.push({ req: specificReq, stake: cfg.stake });
                 }
             }
 
-            setDebugStatus(`Executing ${totalTrades} trade(s)...`);
+            let proposals: any[] = [];
+            if (bulkEnabledRef.current && totalTrades > 1) {
+                setDebugStatus(`Fetching proposals...`);
+                proposals = await Promise.all(configReqs.map(c => api_base.api.send(c.req)));
+            }
+
+            // Phase 2: Execute all buy orders simultaneously
+            setDebugStatus(`Executing ${totalTrades} trades...`);
+            const batchId = Date.now();
+            const promises = configReqs.map((c, idx) => {
+                const prefetched = proposals[idx];
+                return executeTrade(c.req, c.stake, contract_type, prefetched, batchId, totalTrades);
+            });
 
             await Promise.all(promises);
+
+            // Phase 3: Auto-stop if bulk trading is on
+            if (bulkEnabledRef.current && isAutoTradingRef.current) {
+                console.log('[SpeedBot] Bulk cycle complete. Stopping auto-trader.');
+                addJournal('Bulk trading cycle complete. Auto-stop triggered.', 'info');
+                setIsAutoTrading(false);
+                botObserver.emit('bot.stop');
+                run_panel.setIsRunning(false);
+            }
         } catch (e: any) {
             console.error('[SpeedBot] tradeOnce Critical Error:', e);
             showToast('System Error: ' + (e.message || e));
@@ -532,10 +621,12 @@ const SpeedBot = observer(() => {
             api_exists: !!api_base.api
         });
 
-        if (!client.is_virtual) {
+
+        // REMOVED Virtual Account Check
+        /*if (!client.is_virtual) {
             showToast('Auto Trading is restricted to Demo Accounts only.');
             return;
-        }
+        }*/
 
         if (!client.is_logged_in && !isAuthorized) {
             showToast('Please wait for authorization...');
@@ -884,6 +975,8 @@ const SpeedBot = observer(() => {
                             const status: Transaction['status'] = (poc.status === 'won' || Number(poc.profit) > 0) ? 'won' :
                                 (poc.status === 'lost' || Number(poc.profit) < 0) ? 'lost' : 'running';
 
+                            const batchInfo = pendingBatchRef.current.get(contractId);
+
                             const newTx: Transaction = {
                                 id: poc.contract_id,
                                 ref: poc.transaction_id || poc.id,
@@ -893,6 +986,8 @@ const SpeedBot = observer(() => {
                                 profit: poc.profit || '0.00',
                                 status,
                                 timestamp: Date.now(),
+                                batch_id: batchInfo?.id,
+                                batch_size: batchInfo?.size
                             };
 
                             if (poc.is_sold || poc.status === 'won' || poc.status === 'lost' || poc.status === 'sold') {
@@ -930,7 +1025,16 @@ const SpeedBot = observer(() => {
                     const exit_digit = lastDigit(poc.exit_tick_display_value) ?? lastDigit(poc.exit_spot) ?? lastDigit(poc.tick_val) ?? lastDigit(poc.tick_stream ? poc.tick_stream[poc.tick_stream.length - 1]?.tick_display_value : undefined) ?? tx.exit_digit;
                     const entry_digit = lastDigit(poc.entry_tick_display_value) ?? lastDigit(poc.entry_spot) ?? lastDigit(poc.tick_stream ? poc.tick_stream[0]?.tick_display_value : undefined) ?? tx.entry_digit;
 
-                    const updatedTx = { ...tx, status, profit, exit_digit, entry_digit };
+                    const batchInfo = pendingBatchRef.current.get(contractId);
+                    const updatedTx = {
+                        ...tx,
+                        status,
+                        profit,
+                        exit_digit,
+                        entry_digit,
+                        batch_id: tx.batch_id || batchInfo?.id,
+                        batch_size: tx.batch_size || batchInfo?.size
+                    };
                     const next = [...prev];
                     next[existingIndex] = updatedTx;
                     return next;
@@ -1693,32 +1797,101 @@ const SpeedBot = observer(() => {
                                     </div>
 
                                     <div className='tx-list'>
-                                        {transactions.map(tx => (
-                                            <div key={tx.id} className='tx-row'>
-                                                <div className='col-type'>
-                                                    <div className={clsx('dot-indicator', tx.status)}></div>
-                                                    {tx.contract_type.replace('DIGIT', '')}
-                                                </div>
-                                                <div className='col-spots'>
-                                                    {/* We don't have entry spot easily accessible in simple model, using placeholders or ref */}
-                                                    <div className='spot-row'>
-                                                        <span className='dot entry'></span>
-                                                        {tx.entry_digit !== undefined ? tx.entry_digit : '—'}
+                                        {(() => {
+                                            // Group transactions by batch_id
+                                            const grouped: { [key: string]: Transaction[] } = {};
+                                            const standalone: Transaction[] = [];
+
+                                            transactions.forEach(tx => {
+                                                if (tx.batch_id) {
+                                                    if (!grouped[tx.batch_id]) grouped[tx.batch_id] = [];
+                                                    grouped[tx.batch_id].push(tx);
+                                                } else {
+                                                    standalone.push(tx);
+                                                }
+                                            });
+
+                                            // Combine them back sorted by timestamp
+                                            const allDisplayItems: (Transaction | { isHeader: boolean, batchId: number, stats: any })[] = [];
+                                            const processedBatches = new Set();
+
+                                            transactions.forEach(tx => {
+                                                if (tx.batch_id) {
+                                                    if (!processedBatches.has(tx.batch_id)) {
+                                                        processedBatches.add(tx.batch_id);
+                                                        const batchTxs = transactions.filter(t => t.batch_id === tx.batch_id);
+                                                        const won = batchTxs.filter(t => t.status === 'won').length;
+                                                        const lost = batchTxs.filter(t => t.status === 'lost').length;
+                                                        const total = tx.batch_size || batchTxs.length;
+
+                                                        allDisplayItems.push({
+                                                            isHeader: true,
+                                                            batchId: tx.batch_id,
+                                                            stats: { won, lost, total }
+                                                        });
+
+                                                        // Sort batch txs by timestamp descending
+                                                        const sortedBatch = [...batchTxs].sort((a, b) => b.timestamp - a.timestamp);
+                                                        allDisplayItems.push(...sortedBatch);
+                                                    }
+                                                } else {
+                                                    allDisplayItems.push(tx);
+                                                }
+                                            });
+
+                                            return allDisplayItems.map((item, idx) => {
+                                                if ('isHeader' in item) {
+                                                    return (
+                                                        <div key={`header-${item.batchId}`} className='batch-header' style={{
+                                                            background: 'rgba(59, 130, 246, 0.1)',
+                                                            padding: '8px 12px',
+                                                            margin: '12px 0 4px',
+                                                            borderRadius: '6px',
+                                                            borderLeft: '4px solid #3b82f6',
+                                                            display: 'flex',
+                                                            justifyContent: 'space-between',
+                                                            alignItems: 'center',
+                                                            fontSize: '12px'
+                                                        }}>
+                                                            <div style={{ fontWeight: 'bold' }}>
+                                                                <span style={{ color: '#3b82f6' }}>Bulk Trade: </span>
+                                                                {item.stats.total} Contracts
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                                <span style={{ color: '#22c55e' }}>Won: {item.stats.won}</span>
+                                                                <span style={{ color: '#ff444f' }}>Lost: {item.stats.lost}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                const tx = item;
+                                                return (
+                                                    <div key={tx.id} className='tx-row'>
+                                                        <div className='col-type'>
+                                                            <div className={clsx('dot-indicator', tx.status)}></div>
+                                                            {tx.contract_type.replace('DIGIT', '')}
+                                                        </div>
+                                                        <div className='col-spots'>
+                                                            <div className='spot-row'>
+                                                                <span className='dot entry'></span>
+                                                                {tx.entry_digit !== undefined ? tx.entry_digit : '—'}
+                                                            </div>
+                                                            <div className='spot-row'>
+                                                                <span className={clsx('dot exit', tx.status)}></span>
+                                                                {tx.exit_digit !== undefined ? tx.exit_digit : '—'}
+                                                            </div>
+                                                        </div>
+                                                        <div className='col-pl'>
+                                                            <div className='stake'>{tx.stake.toFixed(2)} USD</div>
+                                                            <div className={clsx('profit', tx.status)}>
+                                                                {tx.status === 'won' ? `+${tx.profit}` : tx.status === 'lost' ? `-${tx.stake.toFixed(2)}` : '0.00'} USD
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className='spot-row'>
-                                                        <span className={clsx('dot exit', tx.status)}></span>
-                                                        {tx.exit_digit !== undefined ? tx.exit_digit : '—'}
-                                                    </div>
-                                                </div>
-                                                <div className='col-pl'>
-                                                    <div className='stake'>{tx.stake.toFixed(2)} USD</div>
-                                                    <div className={clsx('profit', tx.status)}>
-                                                        {tx.status === 'won' ? `+${tx.profit}` : tx.status === 'lost' ? `-${tx.stake.toFixed(2)}` : '0.00'} USD
-                                                    </div>
-                                                </div>
-                                                {/* Hidden details for expansion could go here */}
-                                            </div>
-                                        ))}
+                                                );
+                                            });
+                                        })()}
                                         {transactions.length === 0 && (
                                             <div className='empty-state'>No transactions yet</div>
                                         )}
@@ -1778,9 +1951,20 @@ const SpeedBot = observer(() => {
                                     ) : (
                                         journal.map(entry => (
                                             <div key={entry.id} className={clsx('journal-entry', entry.type)}>
-                                                <span className='time'>
-                                                    {new Date(entry.timestamp).toLocaleTimeString([], { hour12: false })}
-                                                </span>
+                                                <div className='entry-meta'>
+                                                    <span className='time'>
+                                                        {new Date(entry.timestamp).toLocaleTimeString([], { hour12: false })}
+                                                    </span>
+                                                    <span className={clsx('account-badge', entry.is_demo ? 'demo' : 'real')}>
+                                                        {entry.is_demo ? 'DEMO' : 'REAL'}
+                                                    </span>
+                                                    {entry.volatility && (
+                                                        <span className='vol-badge'>{entry.volatility.replace('R_', 'V')}</span>
+                                                    )}
+                                                    {entry.barrier !== undefined && (
+                                                        <span className='barrier-badge' style={{ background: '#3b82f6', color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>B: {entry.barrier}</span>
+                                                    )}
+                                                </div>
                                                 <span className='msg'>{entry.message}</span>
                                             </div>
                                         ))
