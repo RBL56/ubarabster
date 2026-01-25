@@ -575,7 +575,7 @@ const SpeedBot = observer(() => {
 
             // Phase 2: Execute all buy orders simultaneously
             setDebugStatus(`Executing ${totalTrades} trades...`);
-            const batchId = Date.now();
+            const batchId = totalTrades > 1 ? Date.now() : undefined;
             const promises = configReqs.map((c, idx) => {
                 const prefetched = proposals[idx];
                 return executeTrade(c.req, c.stake, contract_type, prefetched, batchId, totalTrades);
@@ -1816,7 +1816,7 @@ const SpeedBot = observer(() => {
                                             const processedBatches = new Set();
 
                                             transactions.forEach(tx => {
-                                                if (tx.batch_id) {
+                                                if (tx.batch_id && bulkEnabled) {
                                                     if (!processedBatches.has(tx.batch_id)) {
                                                         processedBatches.add(tx.batch_id);
                                                         const batchTxs = transactions.filter(t => t.batch_id === tx.batch_id);
