@@ -51,6 +51,7 @@ const SpeedBot = observer(() => {
     // Entry
     const [entryEnabled, setEntryEnabled] = useState(false);
     const [entryPoint, setEntryPoint] = useState('single');
+    const [entryDigit, setEntryDigit] = useState(5);
     const [digitRangeStart, setDigitRangeStart] = useState(0);
     const [digitRangeEnd, setDigitRangeEnd] = useState(9);
 
@@ -60,6 +61,7 @@ const SpeedBot = observer(() => {
     const [singleStake, setSingleStake] = useState(0.5);
     const [predPre, setPredPre] = useState<string | number>(5);
     const [predPost, setPredPost] = useState<string | number>(7);
+    const [recoveryContractType, setRecoveryContractType] = useState('DIGITOVER');
     const [predictions, setPredictions] = useState<{ digit: number; stake: number; id: number }[]>([]);
 
     // Martingale
@@ -91,6 +93,8 @@ const SpeedBot = observer(() => {
     const [totalLosses, setTotalLosses] = useState(0);
     const [lastResultDisplay, setLastResultDisplay] = useState<'WIN' | 'LOSS' | null>(null);
     const [debugStatus, setDebugStatus] = useState('Idle');
+    const [ticksCount, setTicksCount] = useState(0);
+    const [lastTickColor, setLastTickColor] = useState('');
     const [journal, setJournal] = useState<JournalEntry[]>([]);
 
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -132,6 +136,7 @@ const SpeedBot = observer(() => {
     const bulkTradesRef = useRef(bulkTrades);
     const entryEnabledRef = useRef(entryEnabled);
     const entryPointRef = useRef(entryPoint);
+    const entryDigitRef = useRef(entryDigit);
     const digitRangeStartRef = useRef(digitRangeStart);
     const digitRangeEndRef = useRef(digitRangeEnd);
     const predictionModeRef = useRef(predictionMode);
@@ -139,6 +144,7 @@ const SpeedBot = observer(() => {
     const singleStakeRef = useRef(singleStake);
     const predPreRef = useRef(predPre);
     const predPostRef = useRef(predPost);
+    const recoveryContractTypeRef = useRef(recoveryContractType);
     const predictionsRef = useRef(predictions);
 
     useEffect(() => { volatilityRef.current = volatility; }, [volatility]);
@@ -148,6 +154,7 @@ const SpeedBot = observer(() => {
     useEffect(() => { bulkTradesRef.current = bulkTrades; }, [bulkTrades]);
     useEffect(() => { entryEnabledRef.current = entryEnabled; }, [entryEnabled]);
     useEffect(() => { entryPointRef.current = entryPoint; }, [entryPoint]);
+    useEffect(() => { entryDigitRef.current = entryDigit; }, [entryDigit]);
     useEffect(() => { digitRangeStartRef.current = digitRangeStart; }, [digitRangeStart]);
     useEffect(() => { digitRangeEndRef.current = digitRangeEnd; }, [digitRangeEnd]);
     useEffect(() => { predictionModeRef.current = predictionMode; }, [predictionMode]);
@@ -155,6 +162,7 @@ const SpeedBot = observer(() => {
     useEffect(() => { singleStakeRef.current = singleStake; }, [singleStake]);
     useEffect(() => { predPreRef.current = predPre; }, [predPre]);
     useEffect(() => { predPostRef.current = predPost; }, [predPost]);
+    useEffect(() => { recoveryContractTypeRef.current = recoveryContractType; }, [recoveryContractType]);
     useEffect(() => { predictionsRef.current = predictions; }, [predictions]);
 
     useEffect(() => { isAutoTradingRef.current = isAutoTrading; }, [isAutoTrading]);
@@ -259,10 +267,30 @@ const SpeedBot = observer(() => {
         return map[vol] || 'R_10';
     };
 
-    const getPrecision = (symbol: string) => {
+    const getPrecision = (symbol: string, packetPipSize?: number) => {
+        // 1. Highest priority: explicit pip size from the packet (Live Ticks)
+        if (packetPipSize !== undefined && packetPipSize > 0) {
+            if (packetPipSize < 1) return Math.round(Math.abs(Math.log10(packetPipSize)));
+            return packetPipSize;
+        }
+
+        // 2. Second priority: server-provided pip sizes (from active_symbols)
+        if (api_base.pip_sizes?.[symbol]) {
+            const pip = api_base.pip_sizes[symbol];
+            if (pip < 1) return Math.round(Math.abs(Math.log10(pip)));
+            return pip;
+        }
+
+        // 3. Fallbacks for known asset classes
         if (symbol.includes('1HZ')) return 2;
-        if (api_base.pip_sizes?.[symbol]) return api_base.pip_sizes[symbol];
-        return 3;
+        if (symbol.includes('R_100')) return 2;
+        if (symbol.includes('JD')) return 3; // Jump indices typically use 3 decimals for last digit
+
+        // Better defaults based on common Deriv indices
+        if (symbol === 'R_10' || symbol === 'R_25' || symbol === 'R_50') return 3;
+        if (symbol === 'R_75') return 4;
+
+        return 2; // Safe default
     };
 
     const getContractType = () => {
@@ -297,7 +325,7 @@ const SpeedBot = observer(() => {
         const latest = lastDigits[lastDigits.length - 1];
 
         if (entryPointRef.current === 'single') {
-            return latest === singleDigitRef.current;
+            return latest === entryDigitRef.current;
         }
         if (entryPointRef.current === 'double' && lastDigits.length >= 2) {
             const prev = lastDigits[lastDigits.length - 2];
@@ -508,7 +536,8 @@ const SpeedBot = observer(() => {
                 } else if (predictionModeRef.current === 'recovery') {
                     // Recovery Mode Logic
                     const val = consecutiveLossesRef.current > 0 ? Number(predPostRef.current) : Number(predPreRef.current);
-                    configs.push({ barrier: val, stake: defaultStake });
+                    const contractType = consecutiveLossesRef.current > 0 ? recoveryContractTypeRef.current : contract_type;
+                    configs.push({ barrier: val, stake: defaultStake, contract_type: contractType });
                 } else {
                     // Single / Default
                     configs.push({ barrier: singleDigitRef.current, stake: defaultStake });
@@ -563,7 +592,8 @@ const SpeedBot = observer(() => {
                         passthrough: { batch_idx: i, batch_id: Date.now() }
                     };
                     if (cfg.barrier !== undefined) specificReq.barrier = cfg.barrier;
-                    configReqs.push({ req: specificReq, stake: cfg.stake });
+                    if (cfg.contract_type) specificReq.contract_type = cfg.contract_type;
+                    configReqs.push({ req: specificReq, stake: cfg.stake, contract_type: specificReq.contract_type });
                 }
             }
 
@@ -578,7 +608,7 @@ const SpeedBot = observer(() => {
             const batchId = totalTrades > 1 ? Date.now() : undefined;
             const promises = configReqs.map((c, idx) => {
                 const prefetched = proposals[idx];
-                return executeTrade(c.req, c.stake, contract_type, prefetched, batchId, totalTrades);
+                return executeTrade(c.req, c.stake, c.contract_type, prefetched, batchId, totalTrades);
             });
 
             await Promise.all(promises);
@@ -722,28 +752,13 @@ const SpeedBot = observer(() => {
                 cell.style.backgroundColor = bgColor;
 
                 // 2. Percent & Count
-                const percentVal = (count / total) * 100;
-                const percentStr = percentVal.toFixed(1).padStart(5, '0'); // "012.3"
-                const percentDigits = percentStr.replace('.', '').split(''); // ["0", "1", "2", "3"]
+                const percentVal = total > 0 ? (count / total) * 100 : 0;
 
-                const percentEl = cell.querySelector('.percent');
+                const percentEl = cell.querySelector('.percent-text');
                 const countEl = cell.querySelector('.count');
 
                 if (percentEl) {
-                    const cols = percentEl.querySelectorAll('.digit-col');
-                    cols.forEach((col: any, i) => {
-                        const val = parseInt(percentDigits[i], 10);
-                        col.style.transform = `translateY(-${val * 1.2}em)`;
-
-                        // Hide leading zeros for hundreds and tens
-                        if (i === 0 && percentDigits[0] === '0') {
-                            col.style.opacity = '0';
-                        } else if (i === 1 && percentDigits[0] === '0' && percentDigits[1] === '0') {
-                            col.style.opacity = '0';
-                        } else {
-                            col.style.opacity = '1';
-                        }
-                    });
+                    percentEl.textContent = `${percentVal.toFixed(1)}%`;
                 }
 
                 if (countEl) countEl.textContent = String(count);
@@ -763,18 +778,18 @@ const SpeedBot = observer(() => {
     }, []);
 
     const updateLiveDigits = useCallback((item: { value: number; color: string }) => {
-        liveDigitsBufferRef.current.unshift(item);
+        liveDigitsBufferRef.current.push(item);
         if (liveDigitsBufferRef.current.length > 40) {
-            liveDigitsBufferRef.current.pop();
+            liveDigitsBufferRef.current.shift();
         }
 
         if (liveDigitsRef.current) {
             const newDigitHtml = `<div class="digit ${item.color}">${item.value}</div>`;
-            liveDigitsRef.current.insertAdjacentHTML('afterbegin', newDigitHtml);
+            liveDigitsRef.current.insertAdjacentHTML('beforeend', newDigitHtml);
 
-            // Maintain the limit of 40 in the DOM
+            // Maintain the limit of 40 in the DOM - remove from the beginning for "down to up" flow
             if (liveDigitsRef.current.children.length > 40) {
-                liveDigitsRef.current.lastElementChild?.remove();
+                liveDigitsRef.current.firstElementChild?.remove();
             }
         }
     }, []);
@@ -812,6 +827,13 @@ const SpeedBot = observer(() => {
 
             try {
                 setDebugStatus('Initializing...');
+
+                // Wait for active symbols / pip sizes to be ready if they aren't
+                if (!api_base.has_active_symbols) {
+                    setDebugStatus('Waiting for Market Data...');
+                    await api_base.active_symbols_promise;
+                }
+
                 // Clear state for new symbol
                 setDigits([]);
                 liveDigitsBufferRef.current = [];
@@ -836,7 +858,8 @@ const SpeedBot = observer(() => {
                 setDebugStatus('History received');
 
                 if (isMounted && res.history && res.history.prices) {
-                    const precision = getPrecision(symbol);
+                    const precision = getPrecision(symbol, res.pip_size || res.history.pip_size);
+                    console.log(`[SpeedBot] History initialization for ${symbol}. Using precision: ${precision}`);
                     const historicalDigits: number[] = [];
                     // Populate buffer without rendering yet? Or render everything
 
@@ -862,10 +885,11 @@ const SpeedBot = observer(() => {
                         updateLiveDigits({ value: digit, color });
                     });
 
-                    digitHistoryRef.current = historicalDigits;
+                    // Ensure strict sliding window of 1000
+                    digitHistoryRef.current = historicalDigits.slice(-1000);
 
-                    if (historicalDigits.length > 0) {
-                        const lastD = historicalDigits[historicalDigits.length - 1];
+                    if (digitHistoryRef.current.length > 0) {
+                        const lastD = digitHistoryRef.current[digitHistoryRef.current.length - 1];
                         setLastDigit(lastD); // Keep state for consistency
                         if (lastDigitRef.current) lastDigitRef.current.textContent = String(lastD);
                         updateLdpGrid(lastD);
@@ -884,8 +908,13 @@ const SpeedBot = observer(() => {
                         activeSubscriptionId = subRes.subscription.id;
                         subscriptionIdRef.current = activeSubscriptionId;
                         setDebugStatus('Ready (Live)');
+                        addJournal(`Subscribed to ${symbol} (Live)`, 'info');
                     } else if (subRes.error) {
                         setDebugStatus(`Sub Error: ${subRes.error.message}`);
+                        addJournal(`Subscription Error: ${subRes.error.code}`, 'error');
+                    } else {
+                        setDebugStatus('Ready (Polling)');
+                        addJournal(`Subscription failed, using polling fallback`, 'info');
                     }
                 }
             } catch (err: any) {
@@ -897,20 +926,37 @@ const SpeedBot = observer(() => {
         const handleTick = (response: any) => {
             if (!isMounted) return;
 
-            const tick = response.tick || response.ohlc;
+            // Normalize response: Deriv API v3 often wraps message in 'data'
+            const msg = response.data || response;
+
+            // Look for tick or ohlc in several common locations
+            const tick = msg.tick || msg.ohlc || (msg.msg_type === 'tick' ? msg : null);
+
             if (!tick) return;
 
-            const incomingSymbol = tick.symbol.toLowerCase().replace('_index', '');
-            const targetSymbol = symbol.toLowerCase().replace('_index', '');
+            const incomingSymbol = String(tick.symbol || msg.symbol || '').trim().toUpperCase();
+            const targetSymbol = symbol.toUpperCase();
 
-            if (incomingSymbol === targetSymbol) {
-                const quote = tick.quote || tick.close;
-                if (quote === undefined) return;
+            // More robust matching: exact, without _INDEX, or if one contains the other
+            const isMatch = incomingSymbol === targetSymbol ||
+                incomingSymbol.replace('_INDEX', '') === targetSymbol.replace('_INDEX', '') ||
+                (incomingSymbol.length > 3 && targetSymbol.includes(incomingSymbol)) ||
+                (targetSymbol.length > 3 && incomingSymbol.includes(targetSymbol));
 
-                setDebugStatus(`Live: ${quote}`);
+            if (isMatch) {
+                const quote = tick.quote !== undefined ? tick.quote : (tick.close !== undefined ? tick.close : (tick.last_tick !== undefined ? tick.last_tick : undefined));
+                if (quote === undefined || quote === null) return;
 
-                const precision = getPrecision(symbol);
+                setTicksCount(prev => prev + 1);
+                setDebugStatus(`Live: ${quote} (${incomingSymbol})`);
+
+                const precision = getPrecision(symbol, tick.pip_size);
                 const { digit, color } = processTick(quote, precision);
+
+                setLastTickColor(color);
+
+                // DEBUG LOG: Movement proof
+                console.log(`[SpeedBot] Tick received: ${quote} | Precision: ${precision} | Extracted Digit: ${digit} | Symbol: ${incomingSymbol}`);
 
                 // 1. Direct DOM Update for Speed (Live Digits)
                 updateLiveDigits({ value: digit, color });
@@ -918,6 +964,10 @@ const SpeedBot = observer(() => {
                 // 2. Direct DOM Update for Last Digit
                 if (lastDigitRef.current) {
                     lastDigitRef.current.textContent = String(digit);
+                    // Add flash animation
+                    lastDigitRef.current.classList.remove('tick-flash');
+                    void lastDigitRef.current.offsetWidth; // Trigger reflow
+                    lastDigitRef.current.classList.add('tick-flash');
                 }
 
                 // 3. Update Ref History (Stats)
@@ -1278,8 +1328,9 @@ const SpeedBot = observer(() => {
                                 </span>
                             </div>
                         </div>
-                        <div style={{ fontSize: '10px', opacity: 0.5, marginBottom: '10px' }}>
-                            Status: {debugStatus}
+                        <div style={{ fontSize: '10px', opacity: 0.5, marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>Status: {debugStatus}</span>
+                            <span>Ticks: {ticksCount}</span>
                         </div>
                         <form onSubmit={e => e.preventDefault()}>
                             <label>
@@ -1395,6 +1446,19 @@ const SpeedBot = observer(() => {
                                 </select>
                             </label>
 
+                            {entryEnabled && entryPoint === 'single' && (
+                                <label>
+                                    Entry digit (0–9):
+                                    <input
+                                        type='number'
+                                        min='0'
+                                        max='9'
+                                        value={entryDigit}
+                                        onChange={e => setEntryDigit(Number(e.target.value))}
+                                    />
+                                </label>
+                            )}
+
                             {entryEnabled && entryPoint === 'double' && (
                                 <div className='row'>
                                     <label>
@@ -1460,26 +1524,43 @@ const SpeedBot = observer(() => {
                                             </label>
                                         </div>
                                     )}
-
                                     {predictionMode === 'recovery' && (
-                                        <div className='row'>
-                                            <label>
-                                                Before loss:
-                                                <input
-                                                    type='text'
-                                                    value={predPre}
-                                                    onChange={e => setPredPre(e.target.value)}
-                                                />
-                                            </label>
-                                            <label>
-                                                After loss:
-                                                <input
-                                                    type='text'
-                                                    value={predPost}
-                                                    onChange={e => setPredPost(e.target.value)}
-                                                />
-                                            </label>
-                                        </div>
+                                        <>
+                                            <div className='row'>
+                                                <label>
+                                                    Before loss:
+                                                    <input
+                                                        type='text'
+                                                        value={predPre}
+                                                        onChange={e => setPredPre(e.target.value)}
+                                                    />
+                                                </label>
+                                                <label>
+                                                    After loss:
+                                                    <input
+                                                        type='text'
+                                                        value={predPost}
+                                                        onChange={e => setPredPost(e.target.value)}
+                                                    />
+                                                </label>
+                                            </div>
+                                            <div className='row' style={{ marginTop: '10px' }}>
+                                                <label>
+                                                    Recovery type:
+                                                    <select
+                                                        value={recoveryContractType}
+                                                        onChange={e => setRecoveryContractType(e.target.value)}
+                                                    >
+                                                        <option value='DIGITMATCH'>Digit Match</option>
+                                                        <option value='DIGITDIFF'>Digit Diff</option>
+                                                        <option value='DIGITEVEN'>Digit Even</option>
+                                                        <option value='DIGITODD'>Digit Odd</option>
+                                                        <option value='DIGITOVER'>Digit Over</option>
+                                                        <option value='DIGITUNDER'>Digit Under</option>
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        </>
                                     )}
 
                                     {predictionMode === 'multi' && (
@@ -1648,22 +1729,7 @@ const SpeedBot = observer(() => {
                                     onClick={() => handleDigitClick(d)}
                                 >
                                     <div className='digit-num'>{d}</div>
-                                    <div className='percent'>
-                                        {[0, 1, 2].map(i => (
-                                            <div key={i} className='digit-col' style={{ opacity: i < 2 ? 0 : 1 }}>
-                                                {Array.from({ length: 10 }).map((_, n) => (
-                                                    <span key={n}>{n}</span>
-                                                ))}
-                                            </div>
-                                        ))}
-                                        <span>.</span>
-                                        <div className='digit-col'>
-                                            {Array.from({ length: 10 }).map((_, n) => (
-                                                <span key={n}>{n}</span>
-                                            ))}
-                                        </div>
-                                        <span>%</span>
-                                    </div>
+                                    <div className='percent-text'>0.0%</div>
                                     <div className='count'>0</div>
                                 </div>
                             ))}
@@ -1798,21 +1864,8 @@ const SpeedBot = observer(() => {
 
                                     <div className='tx-list'>
                                         {(() => {
-                                            // Group transactions by batch_id
-                                            const grouped: { [key: string]: Transaction[] } = {};
-                                            const standalone: Transaction[] = [];
-
-                                            transactions.forEach(tx => {
-                                                if (tx.batch_id) {
-                                                    if (!grouped[tx.batch_id]) grouped[tx.batch_id] = [];
-                                                    grouped[tx.batch_id].push(tx);
-                                                } else {
-                                                    standalone.push(tx);
-                                                }
-                                            });
-
-                                            // Combine them back sorted by timestamp
-                                            const allDisplayItems: (Transaction | { isHeader: boolean, batchId: number, stats: any })[] = [];
+                                            // Group transactions and create display items
+                                            const allDisplayItems: (Transaction | { isBulk: boolean, batchId: number, contracts: Transaction[], stats: any })[] = [];
                                             const processedBatches = new Set();
 
                                             transactions.forEach(tx => {
@@ -1820,46 +1873,58 @@ const SpeedBot = observer(() => {
                                                     if (!processedBatches.has(tx.batch_id)) {
                                                         processedBatches.add(tx.batch_id);
                                                         const batchTxs = transactions.filter(t => t.batch_id === tx.batch_id);
+
                                                         const won = batchTxs.filter(t => t.status === 'won').length;
                                                         const lost = batchTxs.filter(t => t.status === 'lost').length;
+                                                        const running = batchTxs.filter(t => t.status === 'running').length;
                                                         const total = tx.batch_size || batchTxs.length;
 
-                                                        allDisplayItems.push({
-                                                            isHeader: true,
-                                                            batchId: tx.batch_id,
-                                                            stats: { won, lost, total }
-                                                        });
+                                                        const totalStake = batchTxs.reduce((acc, t) => acc + t.stake, 0);
+                                                        const totalProfit = batchTxs.reduce((acc, t) => {
+                                                            if (t.status === 'won') return acc + (t.payout - t.stake);
+                                                            if (t.status === 'lost') return acc - t.stake;
+                                                            return acc;
+                                                        }, 0);
 
-                                                        // Sort batch txs by timestamp descending
-                                                        const sortedBatch = [...batchTxs].sort((a, b) => b.timestamp - a.timestamp);
-                                                        allDisplayItems.push(...sortedBatch);
+                                                        allDisplayItems.push({
+                                                            isBulk: true,
+                                                            batchId: tx.batch_id,
+                                                            contracts: batchTxs,
+                                                            stats: { won, lost, running, total, totalStake, totalProfit }
+                                                        });
                                                     }
-                                                } else {
+                                                } else if (!tx.batch_id) {
                                                     allDisplayItems.push(tx);
                                                 }
                                             });
 
                                             return allDisplayItems.map((item, idx) => {
-                                                if ('isHeader' in item) {
+                                                if ('isBulk' in item) {
+                                                    const { stats, contracts } = item;
+                                                    const firstTx = contracts[0];
+                                                    const status: Transaction['status'] = stats.running > 0 ? 'running' :
+                                                        stats.won === stats.total ? 'won' :
+                                                            stats.lost === stats.total ? 'lost' : 'pending';
+
                                                     return (
-                                                        <div key={`header-${item.batchId}`} className='batch-header' style={{
-                                                            background: 'rgba(59, 130, 246, 0.1)',
-                                                            padding: '8px 12px',
-                                                            margin: '12px 0 4px',
-                                                            borderRadius: '6px',
-                                                            borderLeft: '4px solid #3b82f6',
-                                                            display: 'flex',
-                                                            justifyContent: 'space-between',
-                                                            alignItems: 'center',
-                                                            fontSize: '12px'
-                                                        }}>
-                                                            <div style={{ fontWeight: 'bold' }}>
-                                                                <span style={{ color: '#3b82f6' }}>Bulk Trade: </span>
-                                                                {item.stats.total} Contracts
+                                                        <div key={`bulk-${item.batchId}`} className='tx-row bulk-row' style={{ borderLeft: '4px solid #3b82f6', background: 'rgba(59, 130, 246, 0.05)' }}>
+                                                            <div className='col-type'>
+                                                                <div className={clsx('dot-indicator', status)}></div>
+                                                                <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>BULK</span> {firstTx.contract_type.replace('DIGIT', '')}
                                                             </div>
-                                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                                <span style={{ color: '#22c55e' }}>Won: {item.stats.won}</span>
-                                                                <span style={{ color: '#ff444f' }}>Lost: {item.stats.lost}</span>
+                                                            <div className='col-spots'>
+                                                                <div style={{ fontSize: '11px', color: '#9fb3c8' }}>
+                                                                    <span style={{ color: '#22c55e' }}>W:{stats.won}</span> / <span style={{ color: '#ff444f' }}>L:{stats.lost}</span> / <span style={{ color: '#aaa' }}>T:{stats.total}</span>
+                                                                </div>
+                                                                <div style={{ fontSize: '10px', opacity: 0.7 }}>
+                                                                    {stats.running > 0 ? `${stats.running} running...` : 'Completed'}
+                                                                </div>
+                                                            </div>
+                                                            <div className='col-pl'>
+                                                                <div className='stake'>{stats.totalStake.toFixed(2)} USD</div>
+                                                                <div className={clsx('profit', stats.totalProfit >= 0 ? 'won' : 'lost')}>
+                                                                    {stats.totalProfit >= 0 ? `+${stats.totalProfit.toFixed(2)}` : `${stats.totalProfit.toFixed(2)}`} USD
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
@@ -1974,9 +2039,9 @@ const SpeedBot = observer(() => {
                         </div>
                     </section>
                 </div>
-            </div>
+            </div >
             {toastMessage && <div className='alert-toast'>{toastMessage}</div>}
-        </div>
+        </div >
     );
 });
 

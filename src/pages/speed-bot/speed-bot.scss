@@ -216,6 +216,24 @@
         .value {
             font-size: 20px;
             font-weight: bold;
+            transition: all 0.2s;
+
+            &.tick-flash {
+                animation: tick-pulse 0.4s ease-out;
+            }
+        }
+    }
+
+    @keyframes tick-pulse {
+        0% {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.1);
+            color: #fff;
+        }
+
+        100% {
+            background: transparent;
+            transform: scale(1);
         }
     }
 
@@ -325,26 +343,11 @@
             font-size: 18px;
         }
 
-        .percent {
+        .percent-text {
             font-size: 13px;
             color: #9fb3c8;
-            display: flex;
-            justify-content: center;
-            overflow: hidden;
             height: 1.2em;
             line-height: 1.2em;
-
-            .digit-col {
-                display: flex;
-                flex-direction: column;
-                transition: transform 0.5s cubic-bezier(0.45, 0.05, 0.55, 0.95);
-
-                span {
-                    display: block;
-                    height: 1.2em;
-                    text-align: center;
-                }
-            }
         }
 
         .count {
