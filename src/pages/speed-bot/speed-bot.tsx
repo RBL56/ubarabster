@@ -146,6 +146,7 @@ const SpeedBot = observer(() => {
     const predPostRef = useRef(predPost);
     const recoveryContractTypeRef = useRef(recoveryContractType);
     const predictionsRef = useRef(predictions);
+    const hasTriggeredEntryRef = useRef(false);
 
     useEffect(() => { volatilityRef.current = volatility; }, [volatility]);
     useEffect(() => { tradeTypeRef.current = tradeType; }, [tradeType]);
@@ -356,107 +357,88 @@ const SpeedBot = observer(() => {
         return false;
     };
 
-    const executeTrade = async (req: any, tradeStake: number, contract_type: string, prefetchedProposal?: any, batchId?: number, batchSize?: number) => {
+    const executeTrade = async (req: any, tradeStake: number, contract_type: string, _prefetchedProposal?: any, batchId?: number, batchSize?: number) => {
         try {
-            let propRes = prefetchedProposal;
+            // Speed bot optimization: Buy by Parameters (Single round-trip)
+            console.log(`[SpeedBot] Executing direct buy for ${contract_type}:`, req);
+            setDebugStatus(`Purchasing...`);
+            addJournal(`Purchasing ${contract_type}...`, 'info', req.barrier);
+            run_panel.setContractStage(contract_stages.PURCHASE_SENT);
 
-            if (!propRes) {
-                console.log(`[SpeedBot] Requesting proposal:`, req);
-                setDebugStatus(`Proposal...`);
-                addJournal(`Requesting proposal for ${contract_type}...`, 'info', req.barrier);
-                run_panel.setContractStage(contract_stages.PURCHASE_SENT);
+            const buyRequest = {
+                buy: 1,
+                price: tradeStake,
+                subscribe: 1,
+                parameters: {
+                    amount: tradeStake,
+                    basis: 'stake',
+                    contract_type: contract_type,
+                    currency: req.currency || 'USD',
+                    duration: req.duration,
+                    duration_unit: req.duration_unit || 't',
+                    symbol: req.symbol,
+                    barrier: req.barrier,
+                },
+                passthrough: req.passthrough
+            };
 
-                // 1. Get Proposal
-                propRes = await api_base.api.send(req);
-            }
+            const buyRes: any = await api_base.api.send(buyRequest);
 
-            if (propRes.proposal) {
-                console.log(`[SpeedBot] Proposal received:`, propRes.proposal);
-                setDebugStatus(`Buy order...`);
-                addJournal(`Proposal received ($${propRes.proposal.ask_price}). Placing buy order...`, 'info', req.barrier);
+            if (buyRes.buy) {
+                console.log(`[SpeedBot] Buy successful:`, buyRes.buy);
+                setDebugStatus(`Success!`);
+                addJournal(`Buy successful: Contract ID ${buyRes.buy.contract_id}`, 'trade', req.barrier);
+                run_panel.setContractStage(contract_stages.PURCHASE_RECEIVED);
 
-                const id = propRes.proposal.id;
-                // 2. Buy
-                const buyRes: any = await api_base.api.send({ buy: id, price: Number(propRes.proposal.ask_price) });
+                // Update balance optimistically
+                client.updateBalanceOnTrade(tradeStake);
 
-                if (buyRes.buy) {
-                    console.log(`[SpeedBot] Buy successful:`, buyRes.buy);
-                    setDebugStatus(`Success!`);
-                    addJournal(`Buy successful: Contract ID ${buyRes.buy.contract_id}`, 'trade', req.barrier);
-                    run_panel.setContractStage(contract_stages.PURCHASE_RECEIVED);
-
-                    // Update balance optimistically
-                    client.updateBalanceOnTrade(tradeStake);
-
-                    setTransactions(prev => {
-                        const existing = prev.find(tx => String(tx.id) === String(buyRes.buy.contract_id));
-                        if (existing) {
-                            // If already exists (added by handleMessage), just update batch info if missing
-                            if (existing.batch_id) return prev;
-                            return prev.map(tx => String(tx.id) === String(buyRes.buy.contract_id)
-                                ? { ...tx, batch_id: batchId, batch_size: batchSize }
-                                : tx
-                            );
-                        }
-
-                        const newTx: Transaction = {
-                            id: buyRes.buy.contract_id,
-                            ref: buyRes.buy.transaction_id,
-                            contract_type: contract_type,
-                            stake: tradeStake,
-                            payout: propRes.proposal.payout,
-                            profit: '0.00',
-                            status: 'running',
-                            timestamp: Date.now(),
-                            barrier: req.barrier,
-                            batch_id: batchId,
-                            batch_size: batchSize
-                        };
-                        return [newTx, ...prev];
-                    });
-
-                    if (batchId) {
-                        pendingBatchRef.current.set(String(buyRes.buy.contract_id), { id: batchId, size: batchSize || 1 });
+                setTransactions(prev => {
+                    const existing = prev.find(tx => String(tx.id) === String(buyRes.buy.contract_id));
+                    if (existing) {
+                        if (existing.batch_id) return prev;
+                        return prev.map(tx => String(tx.id) === String(buyRes.buy.contract_id)
+                            ? { ...tx, batch_id: batchId, batch_size: batchSize }
+                            : tx
+                        );
                     }
-                    activeContractIdsRef.current.add(String(buyRes.buy.contract_id));
 
-                    // Emit events
-                    botObserver.emit('bot.running');
-                    botObserver.emit('contract.status', {
-                        id: 'contract.purchase_received',
-                        buy: buyRes.buy
-                    });
+                    const newTx: Transaction = {
+                        id: buyRes.buy.contract_id,
+                        ref: buyRes.buy.transaction_id,
+                        contract_type: contract_type,
+                        stake: tradeStake,
+                        payout: buyRes.buy.payout || 0, // Fallback to 0 if not present
+                        profit: '0.00',
+                        status: 'running',
+                        timestamp: Date.now(),
+                        barrier: req.barrier,
+                        batch_id: batchId,
+                        batch_size: batchSize
+                    };
+                    return [newTx, ...prev];
+                });
 
-                    // Subscribe to updates
-                    api_base.api.send({ proposal_open_contract: 1, contract_id: buyRes.buy.contract_id, subscribe: 1 })
-                        .then((sRes: any) => {
-                            if (sRes.error) {
-                                console.error('[SpeedBot] POC Sub Error:', sRes.error);
-                                addJournal(`Sub Error: ${sRes.error.code}`, 'error');
-                            }
-                            else {
-                                console.log('[SpeedBot] POC Subscribed for', buyRes.buy.contract_id);
-                                addJournal(`Subscribed to ${buyRes.buy.contract_id}`, 'info');
-                            }
-                        })
-                        .catch((e: any) => {
-                            console.error('[SpeedBot] POC Sub Exception:', e);
-                            addJournal(`Sub Exception: ${e.message}`, 'error');
-                        });
-
-                    // Only show success toast for single trades to avoid spam
-                    if (!isAutoTrading && (!bulkEnabled || bulkTrades === 1)) {
-                        showToast('Trade placed successfully!');
-                    }
-                } else if (buyRes.error) {
-                    console.error(`[SpeedBot] Buy error:`, buyRes.error);
-                    showToast(buyRes.error.message);
-                    setDebugStatus(`Buy error: ${buyRes.error.code}`);
+                if (batchId) {
+                    pendingBatchRef.current.set(String(buyRes.buy.contract_id), { id: batchId, size: batchSize || 1 });
                 }
-            } else if (propRes.error) {
-                console.error(`[SpeedBot] Proposal error:`, propRes.error);
-                showToast(propRes.error.message);
-                setDebugStatus(`Proposal error: ${propRes.error.code}`);
+                activeContractIdsRef.current.add(String(buyRes.buy.contract_id));
+
+                // Emit events
+                botObserver.emit('bot.running');
+                botObserver.emit('contract.status', {
+                    id: 'contract.purchase_received',
+                    buy: buyRes.buy
+                });
+
+                // Only show success toast for single trades to avoid spam
+                if (!isAutoTrading && (!bulkEnabled || bulkTrades === 1)) {
+                    showToast('Trade placed successfully!');
+                }
+            } else if (buyRes.error) {
+                console.error(`[SpeedBot] Buy error:`, buyRes.error);
+                showToast(buyRes.error.message);
+                setDebugStatus(`Buy error: ${buyRes.error.code}`);
             }
         } catch (e: any) {
             console.error('[SpeedBot] Execution exception:', e);
@@ -581,35 +563,25 @@ const SpeedBot = observer(() => {
 
             setDebugStatus(`Preparing ${totalTrades} trade(s)...`);
 
-            // Phase 1: Get all proposals in parallel if bulkEnabled
-            const configReqs = [];
+            // Execution phase: Execute all buy orders simultaneously
+            setDebugStatus(`Executing ${totalTrades} trade(s)...`);
+            const batchId = totalTrades > 1 ? Date.now() : undefined;
+            const promises: Promise<any>[] = [];
+
             for (let i = 0; i < count; i++) {
                 for (const cfg of configs) {
                     const specificReq = {
                         ...baseReq,
                         amount: cfg.stake,
-                        // Add unique passthrough to force unique proposal IDs for each contract in the batch
-                        passthrough: { batch_idx: i, batch_id: Date.now() }
+                        // Add unique passthrough for traceability in the batch
+                        passthrough: { batch_idx: i, batch_id: batchId || Date.now() }
                     };
                     if (cfg.barrier !== undefined) specificReq.barrier = cfg.barrier;
                     if (cfg.contract_type) specificReq.contract_type = cfg.contract_type;
-                    configReqs.push({ req: specificReq, stake: cfg.stake, contract_type: specificReq.contract_type });
+
+                    promises.push(executeTrade(specificReq, cfg.stake, specificReq.contract_type, undefined, batchId, totalTrades));
                 }
             }
-
-            let proposals: any[] = [];
-            if (bulkEnabledRef.current && totalTrades > 1) {
-                setDebugStatus(`Fetching proposals...`);
-                proposals = await Promise.all(configReqs.map(c => api_base.api.send(c.req)));
-            }
-
-            // Phase 2: Execute all buy orders simultaneously
-            setDebugStatus(`Executing ${totalTrades} trades...`);
-            const batchId = totalTrades > 1 ? Date.now() : undefined;
-            const promises = configReqs.map((c, idx) => {
-                const prefetched = proposals[idx];
-                return executeTrade(c.req, c.stake, c.contract_type, prefetched, batchId, totalTrades);
-            });
 
             await Promise.all(promises);
 
@@ -679,6 +651,7 @@ const SpeedBot = observer(() => {
         lastResultRef.current = null;
         activeContractIdsRef.current.clear();
         setIsTrading(false);
+        hasTriggeredEntryRef.current = false;
 
         setIsAutoTrading(true);
         showToast('Auto Trading Started');
@@ -712,8 +685,15 @@ const SpeedBot = observer(() => {
         }
 
         // Check Entry and Execute
-        if (checkEntryCondition()) {
-            setDebugStatus('Entry condition met! Trading...');
+        // Performance optimization: after first trigger, run continuously
+        const isEntryMet = hasTriggeredEntryRef.current || checkEntryCondition();
+
+        if (isEntryMet) {
+            if (!hasTriggeredEntryRef.current) {
+                console.log('[SpeedBot] Entry condition met for the first time. Starting continuous trading.');
+                hasTriggeredEntryRef.current = true;
+            }
+            setDebugStatus('Running (Continuous)');
             tradeOnce(currentStakeRef.current);
         } else {
             setDebugStatus('Waiting for entry condition...');
