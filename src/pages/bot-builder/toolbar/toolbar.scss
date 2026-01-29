@@ -55,6 +55,14 @@
                 @include typeface(--title-center-bold-active, none);
             }
         }
+
+        &--start {
+            background-color: #FF4081 !important;
+
+            &:hover {
+                background-color: #E91E63 !important;
+            }
+        }
     }
 
     &__section {
