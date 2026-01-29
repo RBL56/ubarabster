@@ -7,6 +7,7 @@ interface PlanRow {
     day: number;
     start: string;
     profit: string;
+    sessionProfits: string[];
     end: string;
     cumPct: string;
 }
@@ -57,11 +58,26 @@ const TradingPlanCalculator = () => {
             const ending = capital;
             const cumulativePct = (ending / initialCapital - 1) * 100;
             totalProfit += dailyProfit;
+            const dailySessionProfits: string[] = [];
+
+            // Re-calculate individual session profits for display
+            let tempCapital = dayStart;
+            for (let s = 0; s < sessionsPerDay; s++) {
+                let sProfit;
+                if (mode === 'gain') {
+                    sProfit = (tempCapital * gainPct) / sessionsPerDay;
+                } else {
+                    sProfit = fixedTarget / sessionsPerDay;
+                }
+                dailySessionProfits.push(sProfit.toFixed(2));
+                tempCapital += sProfit;
+            }
 
             newData.push({
                 day,
                 start: dayStart.toFixed(2),
                 profit: dailyProfit.toFixed(2),
+                sessionProfits: dailySessionProfits,
                 end: ending.toFixed(2),
                 cumPct: cumulativePct.toFixed(2),
             });
@@ -113,36 +129,88 @@ const TradingPlanCalculator = () => {
         doc.text(`Mode: ${modeValue}`, 20, y);
         y += 6;
         doc.text(`Trading Days: ${totalDays}`, 20, y);
+        y += 6;
+        doc.text(`Sessions per Day: ${sessionsPerDay}`, 20, y);
         y += 12;
+
+        // Table layout configuration
+        let xDay = 15;
+        let xStart = 40;
+        let xProfit = 95;
+        let xEnd = 135;
+        let xCum = 175; // Header X
+        let xCumVal = 175; // Value X
+        const sessionXPositions: number[] = [];
+
+        if (sessionsPerDay > 1) {
+            xDay = 12;
+            xStart = 28;
+            let currentX = 55; // Shifted left
+            const step = 22; // Slightly tighter
+
+            for (let i = 0; i < sessionsPerDay; i++) {
+                sessionXPositions.push(currentX);
+                currentX += step;
+            }
+            xProfit = currentX + 5; // Total profit
+            xEnd = xProfit + 30;
+            xCum = xEnd + 30;
+            xCumVal = xCum;
+        }
 
         // Table header
         doc.setFillColor(240, 244, 249);
         doc.rect(14, y - 5, pageWidth - 28, 10, 'F');
         doc.setTextColor(30, 41, 59);
-        doc.setFontSize(11);
-        doc.text('Day', 18, y);
-        doc.text('Start Balance', 50, y);
-        doc.text('Profit', 105, y);
-        doc.text('End Balance', 145, y);
-        doc.text('Cumulative %', 175, y);
+        doc.setFontSize(9); // Size 9 for cleaner look
+        doc.text('Day', xDay, y);
+        doc.text('Start Bal', xStart, y);
+
+        if (sessionsPerDay > 1) {
+            sessionXPositions.forEach((x, i) => {
+                doc.text(`Sess ${i + 1}`, x, y);
+            });
+            doc.text('Total P/L', xProfit, y);
+        } else {
+            doc.text('Profit', xProfit, y);
+        }
+
+        doc.text('End Bal', xEnd, y);
+        doc.text('Cum %', xCum, y);
 
         // Table content
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         y += 8;
 
-        planData.forEach(row => {
+        planData.forEach((row, index) => {
             if (y > 270) {
                 doc.addPage();
                 y = 20;
             }
-            doc.text(row.day.toString(), 18, y);
-            doc.text('$' + row.start, 50, y);
-            doc.setTextColor(16, 185, 129);
-            doc.text('+' + row.profit, 105, y);
+
+            // Zebra striping
+            if (index % 2 === 0) {
+                doc.setFillColor(249, 250, 251); // Very light gray
+                doc.rect(14, y - 4, pageWidth - 28, 8, 'F');
+            }
+
             doc.setTextColor(30, 41, 59);
-            doc.text('$' + row.end, 145, y);
-            doc.text(row.cumPct + '%', 185, y);
-            y += 9;
+            doc.text(row.day.toString(), xDay, y);
+            doc.text('$' + row.start, xStart, y);
+
+            if (sessionsPerDay > 1) {
+                row.sessionProfits.forEach((sp, i) => {
+                    doc.setTextColor(16, 185, 129);
+                    doc.text('+' + sp, sessionXPositions[i], y);
+                });
+            }
+
+            doc.setTextColor(16, 185, 129);
+            doc.text('+' + row.profit, xProfit, y);
+            doc.setTextColor(30, 41, 59);
+            doc.text('$' + row.end, xEnd, y);
+            doc.text(row.cumPct + '%', xCumVal, y);
+            y += 8; // Slightly tighter row height
         });
 
         // Footer
@@ -301,7 +369,10 @@ const TradingPlanCalculator = () => {
                 <div className='results-section'>
                     <div className='section-title'>
                         <i className='fas fa-table'></i>
-                        <Text weight='bold'>{localize('Trading Plan Details')}</Text>
+                        <Text weight='bold'>
+                            {localize('Trading Plan Details')} ({sessionsPerDay}{' '}
+                            {sessionsPerDay === 1 ? localize('Session') : localize('Sessions')})
+                        </Text>
                         <span style={{ fontSize: '0.9rem', color: '#94a3b8', marginLeft: 'auto', fontWeight: 500 }}>
                             <i className='fas fa-arrow-down'></i> {localize('Scroll down to see all days')}
                         </span>
@@ -313,7 +384,13 @@ const TradingPlanCalculator = () => {
                                 <tr>
                                     <th>{localize('Day')}</th>
                                     <th>{localize('Starting Balance')}</th>
-                                    <th>{localize('Profit')}</th>
+                                    {sessionsPerDay > 1 &&
+                                        Array.from({ length: sessionsPerDay }).map((_, i) => (
+                                            <th key={i}>
+                                                {localize('Session')} {i + 1}
+                                            </th>
+                                        ))}
+                                    <th>{sessionsPerDay > 1 ? localize('Total Profit') : localize('Profit')}</th>
                                     <th>{localize('Ending Balance')}</th>
                                     <th>{localize('Cumulative %')}</th>
                                 </tr>
@@ -323,6 +400,12 @@ const TradingPlanCalculator = () => {
                                     <tr key={row.day}>
                                         <td>{row.day}</td>
                                         <td>${row.start}</td>
+                                        {sessionsPerDay > 1 &&
+                                            row.sessionProfits.map((sp, i) => (
+                                                <td key={i} className='profit'>
+                                                    +${sp}
+                                                </td>
+                                            ))}
                                         <td className='profit'>+${row.profit}</td>
                                         <td>
                                             <strong>${row.end}</strong>

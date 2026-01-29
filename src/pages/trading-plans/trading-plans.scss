@@ -273,18 +273,29 @@
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 800px;
+            /* Ensure table doesn't squish too much */
 
             th {
                 background: rgb(99 102 241 / 10%);
                 color: #6366f1;
-                padding: 1.2rem;
+                padding: 0.8rem;
+                /* Reduced padding from 1.2rem */
                 text-align: left;
+                font-size: 0.9rem;
+                /* Reduced font size */
+                white-space: nowrap;
+                /* Prevent headers from wrapping awkwardly */
             }
 
             td {
-                padding: 1rem;
+                padding: 0.8rem;
+                /* Reduced padding from 1rem */
                 border-bottom: 1px solid var(--border-divider);
                 color: var(--text-prominent);
+                font-size: 0.9rem;
+                /* Reduced font size */
+                white-space: nowrap;
             }
 
             .profit {

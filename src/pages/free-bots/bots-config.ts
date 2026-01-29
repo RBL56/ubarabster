@@ -5,7 +5,6 @@ import locoSpeedBotEntryXml from '@/xml/LOCO SPEED BOT WITH ENTRY .xml';
 import entryPointBotOver2Xml from '@/xml/_Entry point Bot over 2.xml';
 import unstoppableDifferBotXml from '@/xml/UNSTOPPABLE DIFFER BOT.xml';
 import overUnderAutoSwitcherXml from '@/xml/OVER UNDER AUTO SWITCHER.xml';
-
 export type TBotConfig = {
     id: string;
     name: string;
