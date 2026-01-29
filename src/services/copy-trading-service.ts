@@ -246,7 +246,7 @@ class CopyTradingService {
                 duration_unit: masterTx.duration_unit || 't',
             };
 
-            const reqId = Date.now() + Math.random();
+            const reqId = Date.now() + Math.floor(Math.random() * 1000);
 
             // Rate limiting
             const now = Date.now();

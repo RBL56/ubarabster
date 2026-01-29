@@ -15,6 +15,7 @@ import { TStores } from '@deriv/stores/types';
 import { localize } from '@deriv-com/translations';
 import { TDbot } from 'Types';
 import RootStore from './root-store';
+import { api_base } from '@/external/bot-skeleton/services/api/api-base';
 
 export type TContractState = {
     buy?: Buy;
@@ -28,7 +29,9 @@ export default class RunPanelStore {
     dbot: TDbot;
     core: TStores;
     disposeReactionsFn: () => void;
+    disposeReactionsFn: () => void;
     timer: NodeJS.Timeout | null;
+    balance_timer: NodeJS.Timeout | null = null;
 
     constructor(root_store: RootStore, core: TStores) {
         makeObservable(this, {
@@ -87,6 +90,8 @@ export default class RunPanelStore {
             preloadAudio: action,
             onMount: action,
             onUnmount: action,
+            startBalanceRefresh: action,
+            stopBalanceRefresh: action,
         });
 
         this.root_store = root_store;
@@ -94,6 +99,7 @@ export default class RunPanelStore {
         this.core = core;
         this.disposeReactionsFn = this.registerReactions();
         this.timer = null;
+        this.balance_timer = null;
     }
 
     active_index = 0;
@@ -320,6 +326,8 @@ export default class RunPanelStore {
             window.sendRequestsStatistic(true);
             performance.clearMeasures();
         }
+
+        this.stopBalanceRefresh();
     };
 
     onClearStatClick = () => {
@@ -371,6 +379,8 @@ export default class RunPanelStore {
             window.sendRequestsStatistic(true);
             performance.clearMeasures();
         }
+
+        this.stopBalanceRefresh();
     };
 
     closeMultiplierContract = () => {
@@ -399,6 +409,7 @@ export default class RunPanelStore {
             }
             this.onCloseDialog();
             summary_card.clear();
+            this.stopBalanceRefresh();
         };
         this.onCancelButtonClick = () => {
             this.onClickSell();
@@ -769,6 +780,8 @@ export default class RunPanelStore {
         observer.unregisterAll('ui.log.notify');
         observer.unregisterAll('ui.log.success');
         observer.unregisterAll('client.invalid_token');
+
+        this.stopBalanceRefresh();
     };
 
     handleInvalidToken = async () => {
@@ -788,5 +801,27 @@ export default class RunPanelStore {
             audioElement.pause();
             audioElement.muted = false;
         });
+    };
+
+    startBalanceRefresh = () => {
+        this.stopBalanceRefresh();
+
+        // Initial fetch
+        api_base.api?.send({ balance: 1, account: 'all' });
+
+        // Periodic fetch every 10 seconds
+        this.balance_timer = setInterval(() => {
+            api_base.api?.send({ balance: 1, account: 'all' });
+        }, 10000); // 10 seconds
+
+        console.log('[RunPanelStore] Balance refresh initiated');
+    };
+
+    stopBalanceRefresh = () => {
+        if (this.balance_timer) {
+            clearInterval(this.balance_timer);
+            this.balance_timer = null;
+            console.log('[RunPanelStore] Balance refresh stopped');
+        }
     };
 }
