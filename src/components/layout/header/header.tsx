@@ -135,31 +135,6 @@ const AppHeader = observer(() => {
             <Wrapper variant='right'>
                 {activeLoginid && (
                     <>
-                        <div className='account-mode-toggle'>
-                            <Button
-                                className={clsx('account-mode-btn', {
-                                    'account-mode-btn--active': !is_virtual,
-                                })}
-                                onClick={() =>
-                                    client.real_account_loginid && client.switchAccount(client.real_account_loginid)
-                                }
-                                tertiary
-                            >
-                                <Localize i18n_default_text='Real' />
-                            </Button>
-                            <Button
-                                className={clsx('account-mode-btn', {
-                                    'account-mode-btn--active': is_virtual,
-                                })}
-                                onClick={() =>
-                                    client.virtual_account_loginid &&
-                                    client.switchAccount(client.virtual_account_loginid)
-                                }
-                                tertiary
-                            >
-                                <Localize i18n_default_text='Demo' />
-                            </Button>
-                        </div>
                         {isDesktop && (
                             <>
                                 {has_wallet ? (
