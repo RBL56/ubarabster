@@ -38,6 +38,16 @@ type JournalEntry = {
 };
 
 const SpeedBot = observer(() => {
+    const { connectionStatus, isAuthorized } = useApiBase();
+    const { client, run_panel, summary_card, transactions: transactionsStore, dashboard } = useStore();
+
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+    const showToast = useCallback((msg: string) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(null), 2200);
+    }, []);
+
     // -- State --
     const [volatility, setVolatility] = useState('R_10');
     const [tradeType, setTradeType] = useState('DIGITMATCH');
@@ -97,7 +107,7 @@ const SpeedBot = observer(() => {
     const [lastTickColor, setLastTickColor] = useState('');
     const [journal, setJournal] = useState<JournalEntry[]>([]);
 
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
+
     const [activeTab, setActiveTab] = useState<'summary' | 'transactions' | 'journal'>('transactions');
 
     const liveDigitsRef = useRef<HTMLDivElement>(null);
@@ -148,6 +158,34 @@ const SpeedBot = observer(() => {
     const predictionsRef = useRef(predictions);
     const hasTriggeredEntryRef = useRef(false);
 
+    // -- Run Mode & Mutex --
+    const [runMode, setRunMode] = useState<'continuous' | 'once'>('continuous');
+    const [showRunMenu, setShowRunMenu] = useState(false); // For the dropdown
+    const runMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (runMenuRef.current && !runMenuRef.current.contains(event.target as Node)) {
+                setShowRunMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Stop bot when switching tabs
+    useEffect(() => {
+        if (dashboard.active_tab !== DBOT_TABS.SPEED_BOT && isAutoTradingRef.current) {
+            console.log('[SpeedBot] Tab changed, stopping auto-trader.');
+            setIsAutoTrading(false);
+            isAutoTradingRef.current = false;
+            botObserver.emit('bot.stop');
+            run_panel.setIsRunning(false);
+            showToast('Auto Trading Stopped (Tab Switched)');
+        }
+    }, [dashboard.active_tab, run_panel, showToast]);
+
     useEffect(() => { volatilityRef.current = volatility; }, [volatility]);
     useEffect(() => { tradeTypeRef.current = tradeType; }, [tradeType]);
     useEffect(() => { ticksRef.current = ticks; }, [ticks]);
@@ -180,13 +218,7 @@ const SpeedBot = observer(() => {
     useEffect(() => { takeProfitEnabledRef.current = takeProfitEnabled; }, [takeProfitEnabled]);
     useEffect(() => { stopLossConsecutiveRef.current = stopLossConsecutive; }, [stopLossConsecutive]);
     useEffect(() => { stopLossConsecutiveEnabledRef.current = stopLossConsecutiveEnabled; }, [stopLossConsecutiveEnabled]);
-    const { connectionStatus, isAuthorized } = useApiBase();
-    const { client, run_panel, summary_card, transactions: transactionsStore, dashboard } = useStore();
 
-    const showToast = useCallback((msg: string) => {
-        setToastMessage(msg);
-        setTimeout(() => setToastMessage(null), 2200);
-    }, []);
 
     const addJournal = useCallback((msg: string, type: JournalEntry['type'] = 'info', barrier?: number | string) => {
         setJournal(prev => [{
@@ -1732,23 +1764,88 @@ const SpeedBot = observer(() => {
 
                         {/* Header: Run Button & Status */}
                         <div className='activity-panel'>
-                            <button
-                                className={clsx('run-btn', isAutoTrading ? 'running' : '')}
-                                onClick={startAuto}
-                            >
-                                <div className='icon'>
-                                    {isAutoTrading ? (
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                            <rect x="6" y="6" width="12" height="12" rx="2" fill="white" />
-                                        </svg>
-                                    ) : (
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                            <path d="M8 5V19L19 12L8 5Z" fill="white" />
-                                        </svg>
-                                    )}
-                                </div>
-                                <span>{isAutoTrading ? 'Stop' : 'Run'}</span>
-                            </button>
+                            <div className='run-btn-group' ref={runMenuRef}>
+                                <button
+                                    className={clsx('run-btn', 'main', isAutoTrading ? 'running' : '')}
+                                    onClick={() => {
+                                        if (isAutoTrading) {
+                                            startAuto(); // Stop
+                                        } else {
+                                            if (runMode === 'once') {
+                                                tradeOnce();
+                                            } else {
+                                                startAuto();
+                                            }
+                                        }
+                                    }}
+                                    style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                                >
+                                    <div className='icon'>
+                                        {isAutoTrading ? (
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                                <rect x="6" y="6" width="12" height="12" rx="2" fill="white" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                                <path d="M8 5V19L19 12L8 5Z" fill="white" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <span>
+                                        {isAutoTrading ? 'Stop' : runMode === 'once' ? 'Run Once' : 'Run Auto'}
+                                    </span>
+                                </button>
+                                <button
+                                    className={clsx('run-btn', 'arrow', isAutoTrading ? 'running' : '')}
+                                    onClick={() => setShowRunMenu(!showRunMenu)}
+                                    style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, padding: '0 8px', width: 'auto', borderLeft: '1px solid rgba(255,255,255,0.2)' }}
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ transform: showRunMenu ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                                        <path d="M7 10L12 15L17 10H7Z" fill="white" />
+                                    </svg>
+                                </button>
+
+                                {showRunMenu && (
+                                    <div className='run-mode-menu'>
+                                        <div
+                                            className={clsx('mode-item', runMode === 'continuous' && 'active')}
+                                            onClick={() => {
+                                                setRunMode('continuous');
+                                                setShowRunMenu(false);
+                                            }}
+                                        >
+                                            <div className='mode-icon'>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                                                </svg>
+                                            </div>
+                                            <div className='mode-info'>
+                                                <div className='mode-title'>Run Continuously</div>
+                                                <div className='mode-desc'>Repeatedly trade</div>
+                                            </div>
+                                            {runMode === 'continuous' && <div className='check'>✓</div>}
+                                        </div>
+                                        <div
+                                            className={clsx('mode-item', runMode === 'once' && 'active')}
+                                            onClick={() => {
+                                                setRunMode('once');
+                                                setShowRunMenu(false);
+                                            }}
+                                        >
+                                            <div className='mode-icon'>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M5 12h14M12 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                            <div className='mode-info'>
+                                                <div className='mode-title'>Run Once</div>
+                                                <div className='mode-desc'>Single trade execution</div>
+                                            </div>
+                                            {runMode === 'once' && <div className='check'>✓</div>}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <div className='status-bar'>
                                 <div className='status-text'>
                                     {isTrading
@@ -1873,7 +1970,7 @@ const SpeedBot = observer(() => {
                                                             stats: { won, lost, running, total, totalStake, totalProfit }
                                                         });
                                                     }
-                                                } else if (!tx.batch_id) {
+                                                } else {
                                                     allDisplayItems.push(tx);
                                                 }
                                             });
@@ -2019,9 +2116,9 @@ const SpeedBot = observer(() => {
                         </div>
                     </section>
                 </div>
-            </div >
+            </div>
             {toastMessage && <div className='alert-toast'>{toastMessage}</div>}
-        </div >
+        </div>
     );
 });
 

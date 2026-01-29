@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { Localize } from '@deriv-com/translations';
 import { useStore } from '@/hooks/useStore';
 import copyTradingService from '@/services/copy-trading-service';
+import { DBOT_TABS } from '@/constants/bot-contents';
 import './copy-trading.scss';
 
 // Configuration
@@ -232,6 +233,15 @@ const CopyTrading = observer(() => {
             copyToClients,
         });
     }, [clients, copyToClients]);
+
+    // Stop copy trading when switching tabs
+    useEffect(() => {
+        if (dashboard.active_tab !== DBOT_TABS.COPY_TRADING && isCopying) {
+            setIsCopying(false);
+            copyTradingService.disableCopyTrading();
+            addNotification('Copy trading stopped (Tab Switched)', 'info');
+        }
+    }, [dashboard.active_tab, isCopying, addNotification]);
 
     // -- render helpers --
     const getSecondaryStatusIcon = () => {
