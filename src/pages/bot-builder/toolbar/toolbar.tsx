@@ -51,7 +51,7 @@ const Toolbar = observer(() => {
                                     >
                                         <path
                                             d='M9.33333 1.33334L2 9.33334H6.66667L6 14.6667L13.3333 6.66668H8.66667L9.33333 1.33334Z'
-                                            fill='#FF4081'
+                                            fill='#BB86FC'
                                         />
                                     </svg>
                                     {localize('Every Tick (Turbo Mode)')}
