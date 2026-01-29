@@ -135,6 +135,7 @@ export default class ClientStore {
             is_virtual: computed,
             landing_company_shortcode: computed,
             residence: computed,
+            real_account_loginid: computed,
             should_show_eu_error: computed,
             logout: action,
             setAccountList: action,
@@ -151,6 +152,7 @@ export default class ClientStore {
             setWebsiteStatus: action,
             setUpgradeableLandingCompanies: action,
             updateTncStatus: action,
+            switchAccount: action,
             is_trading_experience_incomplete: computed,
             is_cr_account: computed,
             account_open_date: computed,
@@ -247,6 +249,10 @@ export default class ClientStore {
 
     get virtual_account_loginid() {
         return this.all_loginids.find(loginid => !!this.accounts[loginid].is_virtual);
+    }
+
+    get real_account_loginid() {
+        return this.all_loginids.find(loginid => !this.accounts[loginid].is_virtual);
     }
 
     get content_flag() {
@@ -549,5 +555,46 @@ export default class ClientStore {
                 resolveNavigation();
                 return Promise.reject(error);
             });
+    };
+
+    switchAccount = async (loginId: string) => {
+        if (loginId === this.loginid) return;
+
+        const account_list = JSON.parse(localStorage.getItem('accountsList') ?? '{}');
+        const token = account_list[loginId];
+
+        if (!token) {
+            console.error(`[ClientStore] No token found for loginId: ${loginId}`);
+            return;
+        }
+
+        console.log(`[ClientStore] Switching to account: ${loginId}`);
+
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('active_loginid', loginId);
+
+        const account_type =
+            loginId
+                .match(/[a-zA-Z]+/g)
+                ?.join('') || '';
+
+        Analytics.setAttributes({
+            account_type,
+        });
+
+        // Re-initialize API with the new token
+        if (api_base) {
+            await api_base.init(true);
+        }
+
+        // Update URL search parameters
+        const search_params = new URLSearchParams(window.location.search);
+        const account = this.accounts[loginId];
+        if (account) {
+            const account_param = account.is_virtual ? 'demo' : (account.currency || 'USD');
+            search_params.set('account', account_param);
+            sessionStorage.setItem('query_param_currency', account_param);
+            window.history.pushState({}, '', `${window.location.pathname}?${search_params.toString()}`);
+        }
     };
 }
