@@ -14,6 +14,8 @@ type TQSToggleSwitch = {
     attached?: boolean;
     isEnabledToggleSwitch: boolean;
     setIsEnabledToggleSwitch: () => void;
+    icon?: string;
+    hide_optional?: boolean;
 };
 
 const QSToggleSwitch: React.FC<TQSToggleSwitch> = ({
@@ -23,6 +25,8 @@ const QSToggleSwitch: React.FC<TQSToggleSwitch> = ({
     attached = false,
     isEnabledToggleSwitch,
     setIsEnabledToggleSwitch,
+    icon,
+    hide_optional = false,
 }) => {
     const { values, setFieldValue } = useFormikContext<TFormData>();
 
@@ -44,20 +48,37 @@ const QSToggleSwitch: React.FC<TQSToggleSwitch> = ({
                         <div className='qs__checkbox'>
                             <div className='qs__checkbox__container'>
                                 <label className='dc-checkbox'>
-                                    <Text size='xs' className='dc-checkbox__label'>
+                                    {icon === 'lightning' && (
+                                        <svg
+                                            width='16'
+                                            height='16'
+                                            viewBox='0 0 16 16'
+                                            fill='none'
+                                            xmlns='http://www.w3.org/2000/svg'
+                                            style={{ marginRight: '8px' }}
+                                        >
+                                            <path
+                                                d='M9.33333 1.33334L2 9.33334H6.66667L6 14.6667L13.3333 6.66668H8.66667L9.33333 1.33334Z'
+                                                fill='#FF8C40'
+                                            />
+                                        </svg>
+                                    )}
+                                    <Text size='xs' weight='bold' className='dc-checkbox__label'>
                                         {label}
                                     </Text>
-                                    <Text size='xs'>{localize('(optional)')}</Text>
+                                    {!hide_optional && <Text size='xs'>{localize('(optional)')}</Text>}
                                 </label>
-                                <span>
-                                    <Popover
-                                        classNameTargetIcon='qs__checkbox__info'
-                                        message={description}
-                                        zIndex='9999'
-                                        alignment='top'
-                                        icon='info'
-                                    />
-                                </span>
+                                {!hide_optional && (
+                                    <span>
+                                        <Popover
+                                            classNameTargetIcon='qs__checkbox__info'
+                                            message={description}
+                                            zIndex='9999'
+                                            alignment='top'
+                                            icon='info'
+                                        />
+                                    </span>
+                                )}
                                 <ToggleSwitch
                                     id='dt_mobile_drawer_theme_toggler'
                                     handleToggle={handleChange}

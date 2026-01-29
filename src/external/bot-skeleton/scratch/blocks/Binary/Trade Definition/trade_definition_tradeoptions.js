@@ -59,6 +59,28 @@ window.Blockly.Blocks.trade_definition_tradeoptions = {
                     text: '',
                 },
             ],
+            message2: '%1 ' + localize('Turbo Mode') + ' %2 %3',
+            args2: [
+                {
+                    type: 'field_image',
+                    src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNOS4zMzMzMyAxLjMzMzM0TDIgOS4zMzMzNEg2LjY2NjY3TDYgMTQuNjY2N0wxMy4zMzMzIDYuNjY2NjhIOC42NjY2N0w5LjMzMzMzIDEuMzMzMzRaIiBmaWxsPSIjRkY4QzQwIi8+PC9zdmc+',
+                    width: 16,
+                    height: 16,
+                    alt: '⚡',
+                },
+                {
+                    type: 'field_checkbox',
+                    name: 'TURBO_MODE',
+                    checked: false,
+                },
+                {
+                    type: 'field_image',
+                    src: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iNyIgc3Ryb2tlPSIjMDBBMEZGIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxwYXRoIGQ9Ik04IDExVjdNOCA1VjUuMDEiIHN0cm9rZT0iIzAwQTBGRiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==',
+                    width: 16,
+                    height: 16,
+                    alt: 'i',
+                },
+            ],
             colour: window.Blockly.Colours.Special1.colour,
             colourSecondary: window.Blockly.Colours.Special1.colourSecondary,
             colourTertiary: window.Blockly.Colours.Special1.colourTertiary,
@@ -667,6 +689,7 @@ window.Blockly.JavaScript.javascriptGenerator.forBlock.trade_definition_tradeopt
         second_barrier_offset_value = getBarrierValue(barrier_offset_type, value);
     }
 
+    const turbo_mode = block.getFieldValue('TURBO_MODE') === 'TRUE';
     const code = `
         Bot.start({
             limitations        : BinaryBotPrivateLimitations,
@@ -678,6 +701,7 @@ window.Blockly.JavaScript.javascriptGenerator.forBlock.trade_definition_tradeopt
             barrierOffset      : ${barrier_offset_value || 'undefined'},
             secondBarrierOffset: ${second_barrier_offset_value || 'undefined'},
             basis              : '${block.type === 'trade_definition_tradeoptions' ? 'stake' : 'payout'}',
+            turboMode          : ${turbo_mode},
         });
         BinaryBotPrivateHasCalledTradeOptions = true;
     `;

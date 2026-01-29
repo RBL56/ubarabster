@@ -279,6 +279,22 @@ const MAX_STAKE = (): TConfigItem => ({
     has_currency_unit: true,
 });
 
+const LABEL_TURBO_MODE = (): TConfigItem => ({
+    type: 'label',
+    label: localize('Turbo Mode'),
+    description: localize('The bot will trade after every tick, bypassing some default delays.'),
+});
+
+const CHECKBOX_TURBO_MODE = (): TConfigItem => ({
+    type: 'checkbox',
+    name: 'boolean_turbo_mode',
+    label: localize('Turbo Mode'),
+    description: localize('Enable this to trade after every tick.'),
+    attached: true,
+    icon: 'lightning',
+    hide_optional: true,
+});
+
 const LABEL_LAST_DIGIT_PREDICTION = (): TConfigItem => ({
     type: 'label',
     name: 'label_last_digit_prediction',
@@ -303,6 +319,7 @@ export const STRATEGIES = (): TStrategies => ({
         rs_strategy_name: 'martingale',
         description: MARTINGALE(),
         fields: [
+            [LABEL_TURBO_MODE(), CHECKBOX_TURBO_MODE()],
             [
                 LABEL_SYMBOL(),
                 SYMBOL(),
@@ -336,6 +353,7 @@ export const STRATEGIES = (): TStrategies => ({
         rs_strategy_name: "d'alembert",
         description: D_ALEMBERT(),
         fields: [
+            [LABEL_TURBO_MODE(), CHECKBOX_TURBO_MODE()],
             [
                 LABEL_SYMBOL(),
                 SYMBOL(),
@@ -369,6 +387,7 @@ export const STRATEGIES = (): TStrategies => ({
         rs_strategy_name: 'reverse martingale',
         description: REVERSE_MARTINGALE(),
         fields: [
+            [LABEL_TURBO_MODE(), CHECKBOX_TURBO_MODE()],
             [
                 LABEL_SYMBOL(),
                 SYMBOL(),
@@ -402,6 +421,7 @@ export const STRATEGIES = (): TStrategies => ({
         rs_strategy_name: "reverse d'alembert",
         description: REVERSE_D_ALEMBERT(),
         fields: [
+            [LABEL_TURBO_MODE(), CHECKBOX_TURBO_MODE()],
             [
                 LABEL_SYMBOL(),
                 SYMBOL(),
@@ -435,6 +455,7 @@ export const STRATEGIES = (): TStrategies => ({
         rs_strategy_name: "oscar's-grind",
         description: OSCARS_GRIND(),
         fields: [
+            [LABEL_TURBO_MODE(), CHECKBOX_TURBO_MODE()],
             [
                 LABEL_SYMBOL(),
                 SYMBOL(),
@@ -459,6 +480,7 @@ export const STRATEGIES = (): TStrategies => ({
         rs_strategy_name: '1-3-2-6',
         description: STRATEGY_1_3_2_6(),
         fields: [
+            [LABEL_TURBO_MODE(), CHECKBOX_TURBO_MODE()],
             [
                 LABEL_SYMBOL(),
                 SYMBOL(),

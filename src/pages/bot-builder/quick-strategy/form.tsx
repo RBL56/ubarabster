@@ -108,8 +108,14 @@ const QuickStrategyForm = observer(() => {
     const renderForm = () => {
         return config.map((group, group_index) => {
             if (!group?.length) return null;
+            const is_turbo_mode_group = group.some(field => field.name === 'boolean_turbo_mode');
             return (
-                <div className='qs__body__content__form__group' key={group_index}>
+                <div
+                    className={classNames('qs__body__content__form__group', {
+                        'qs__body__content__form__group--turbo': is_turbo_mode_group,
+                    })}
+                    key={group_index}
+                >
                     {group.map((field, field_index) => {
                         const key = `${field.name || field.type} + ${field_index}`;
 
@@ -200,13 +206,13 @@ const QuickStrategyForm = observer(() => {
                                             field.description
                                                 ? typeof field.description === 'function'
                                                     ? () => {
-                                                          // Create a wrapper function that doesn't expect parameters
-                                                          // but internally calls the original function
-                                                          const descriptionFn = field.description as (
-                                                              additional_data?: Record<string, unknown>
-                                                          ) => React.ReactNode;
-                                                          return descriptionFn(additional_data);
-                                                      }
+                                                        // Create a wrapper function that doesn't expect parameters
+                                                        // but internally calls the original function
+                                                        const descriptionFn = field.description as (
+                                                            additional_data?: Record<string, unknown>
+                                                        ) => React.ReactNode;
+                                                        return descriptionFn(additional_data);
+                                                    }
                                                     : String(field.description || '')
                                                 : ''
                                         }
@@ -223,6 +229,8 @@ const QuickStrategyForm = observer(() => {
                                         description={field.description ? String(field.description) : undefined}
                                         isEnabledToggleSwitch={!!isEnabledToggleSwitch}
                                         setIsEnabledToggleSwitch={toggleSwitch}
+                                        icon={field.icon}
+                                        hide_optional={field.hide_optional}
                                     />
                                 );
                             // Dedicated components only for Quick-Strategy

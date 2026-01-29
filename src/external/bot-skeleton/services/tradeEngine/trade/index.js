@@ -17,37 +17,48 @@ import Sell from './Sell';
 import Ticks from './Ticks';
 import Total from './Total';
 
-const watchBefore = store =>
+const watchBefore = (store, turboMode, engine) =>
     watchScope({
         store,
         stopScope: constants.DURING_PURCHASE,
         passScope: constants.BEFORE_PURCHASE,
         passFlag: 'proposalsReady',
+        turboMode,
+        engine,
     });
 
-const watchDuring = store =>
+const watchDuring = (store, turboMode, engine) =>
     watchScope({
         store,
         stopScope: constants.STOP,
         passScope: constants.DURING_PURCHASE,
         passFlag: 'openContract',
+        turboMode,
+        engine,
     });
 
-/* The watchScope function is called randomly and resets the prevTick
- * which leads to the same problem we try to solve. So prevTick is isolated
- */
-let prevTick;
-const watchScope = ({ store, stopScope, passScope, passFlag }) => {
-    // in case watch is called after stop is fired
-    if (store.getState().scope === stopScope) {
+const watchScope = ({ store, stopScope, passScope, passFlag, turboMode, engine }) => {
+    // Immediate check for Turbo Mode: if we are ready and haven't handled this state increment yet, proceed.
+    const currentState = store.getState();
+    if (turboMode && currentState.scope === passScope && currentState[passFlag]) {
+        if (engine.stateUpdateId !== engine.lastHandledStateId) {
+            engine.lastHandledStateId = engine.stateUpdateId;
+            return Promise.resolve(true);
+        }
+    }
+
+    if (currentState.scope === stopScope) {
         return Promise.resolve(false);
     }
     return new Promise(resolve => {
         const unsubscribe = store.subscribe(() => {
             const newState = store.getState();
 
-            if (newState.newTick === prevTick) return;
-            prevTick = newState.newTick;
+            if (!turboMode && newState.newTick === engine.prevTick) return;
+            engine.prevTick = newState.newTick;
+
+            // Mark this state as handled so the next immediate check in the loop yields.
+            engine.lastHandledStateId = engine.stateUpdateId;
 
             if (newState.scope === passScope && newState[passFlag]) {
                 unsubscribe();
@@ -62,7 +73,7 @@ const watchScope = ({ store, stopScope, passScope, passFlag }) => {
     });
 };
 
-export default class TradeEngine extends Balance(Purchase(Sell(OpenContract(Proposal(Ticks(Total(class {}))))))) {
+export default class TradeEngine extends Balance(Purchase(Sell(OpenContract(Proposal(Ticks(Total(class { }))))))) {
     constructor($scope) {
         super();
         this.observer = $scope.observer;
@@ -75,6 +86,12 @@ export default class TradeEngine extends Balance(Purchase(Sell(OpenContract(Prop
         this.subscription_id_for_accumulators = null;
         this.is_proposal_requested_for_accumulators = false;
         this.store = createStore(rootReducer, applyMiddleware(thunk));
+        this.stateUpdateId = 0;
+        this.lastHandledStateId = -1;
+        this.prevTick = undefined;
+        this.store.subscribe(() => {
+            this.stateUpdateId++;
+        });
     }
 
     init(...args) {
@@ -146,9 +163,9 @@ export default class TradeEngine extends Balance(Purchase(Sell(OpenContract(Prop
 
     watch(watchName) {
         if (watchName === 'before') {
-            return watchBefore(this.store);
+            return watchBefore(this.store, this.tradeOptions?.turboMode, this);
         }
-        return watchDuring(this.store);
+        return watchDuring(this.store, this.tradeOptions?.turboMode, this);
     }
 
     makeDirectPurchaseDecision() {

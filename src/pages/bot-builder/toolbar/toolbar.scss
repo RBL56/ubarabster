@@ -47,7 +47,7 @@
                 padding-right: 0.4rem;
             }
 
-            > * {
+            >* {
                 align-self: center;
             }
 
@@ -61,16 +61,17 @@
         display: flex;
 
         @include mobile-or-tablet-screen {
-            flex-direction: row-reverse;
+            flex-direction: row; // Changed from row-reverse to match Image 3
+            align-items: center;
             height: 100%;
-            column-gap: 1.6rem !important;
+            column-gap: 1.2rem !important;
             padding-top: 1.6rem;
             padding-inline-start: 1.6rem;
             padding-bottom: 0.8rem;
             padding-inline-end: 0.8rem;
         }
 
-        > * {
+        >* {
             @include desktop-screen {
                 align-self: center;
             }
@@ -114,7 +115,7 @@
                 }
             }
 
-            > * {
+            >* {
                 align-self: center;
             }
         }
@@ -141,6 +142,50 @@
             box-shadow:
                 0 1.2rem 1.6rem rgb(14 14 14 / 8%),
                 0 0.4rem 0.6rem rgb(14 14 14 / 3%);
+        }
+    }
+
+    &__turbo-mode {
+        display: none;
+
+        @include mobile-or-tablet-screen {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: var(--general-main-1);
+            border: 1px solid var(--border-normal);
+            border-radius: 8px;
+            padding: 0 1.2rem;
+            height: 4rem;
+            gap: 1.2rem;
+            min-width: 16rem;
+
+            &__label {
+                display: flex;
+                align-items: center;
+                gap: 0.8rem;
+                white-space: nowrap;
+
+                span {
+                    color: var(--text-general);
+                }
+            }
+
+            .dc-toggle-switch__label {
+                width: 3.2rem;
+                height: 1.6rem;
+                padding: 0 0.2rem;
+
+                .dc-toggle-switch__button {
+                    width: 1.2rem;
+                    height: 1.2rem;
+                }
+            }
+
+            // Sync with checked state animation
+            .dc-toggle-switch:checked+.dc-toggle-switch__label .dc-toggle-switch__button {
+                transform: translateX(1.6rem);
+            }
         }
     }
 }

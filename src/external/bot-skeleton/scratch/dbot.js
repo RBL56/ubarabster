@@ -137,10 +137,22 @@ class DBot {
                 this.workspace.addChangeListener(event => this.workspace.dispatchBlockEventEffects(event));
                 this.workspace.addChangeListener(event => {
                     if (event.type === 'drag' && !event.isStart && !is_mobile) validateErrorOnBlockDelete();
-                    if (event.type == window.Blockly.Events.BLOCK_CHANGE) {
+                    if (event.type === window.Blockly.Events.BLOCK_CHANGE || event.type === window.Blockly.Events.BLOCK_CREATE) {
                         const block = this.workspace.getBlockById(event.blockId);
-                        if (is_mobile && block && event.element == 'collapsed') {
+                        if (is_mobile && block && event.element === 'collapsed') {
                             block.contextMenu = false;
+                        }
+
+                        // Sync Turbo Mode global state from workspace block
+                        if (block?.type === 'trade_definition_tradeoptions') {
+                            const turboModeField = block.getField('TURBO_MODE');
+                            if (turboModeField) {
+                                const isTurbo = turboModeField.getValue() === 'TRUE';
+                                const { quick_strategy } = DBotStore.instance || {};
+                                if (quick_strategy && quick_strategy.is_turbo_mode !== isTurbo) {
+                                    quick_strategy.setTurboMode(isTurbo, true); // true to skip sync back to block
+                                }
+                            }
                         }
                     }
                 });
@@ -180,6 +192,21 @@ class DBot {
                     window.Blockly.utils.xml.textToDom(window.Blockly.derivWorkspace.strategy_to_load),
                     this.workspace
                 );
+
+                // Initial sync of Turbo Mode from loaded workspace
+                const blocks = this.workspace.getAllBlocks(false);
+                const tradeOptionsBlock = blocks.find(b => b.type === 'trade_definition_tradeoptions');
+                if (tradeOptionsBlock) {
+                    const turboModeField = tradeOptionsBlock.getField('TURBO_MODE');
+                    if (turboModeField) {
+                        const isTurbo = turboModeField.getValue() === 'TRUE';
+                        const { quick_strategy } = DBotStore.instance || {};
+                        if (quick_strategy && quick_strategy.is_turbo_mode !== isTurbo) {
+                            quick_strategy.setTurboMode(isTurbo, true);
+                        }
+                    }
+                }
+
                 const { save_modal } = DBotStore.instance;
 
                 save_modal.updateBotName(file_name);

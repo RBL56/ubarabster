@@ -36,6 +36,7 @@ interface IQuickStrategyStore {
     is_contract_dialog_open: boolean;
     is_stop_bot_dialog_open: boolean;
     is_options_loading: boolean;
+    is_turbo_mode: boolean;
     setLossThresholdWarningData: (data: TLossThresholdWarningData) => void;
     setFormVisibility: (is_open: boolean) => void;
     setSelectedStrategy: (strategy: string) => void;
@@ -59,6 +60,7 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
     is_contract_dialog_open = false;
     is_stop_bot_dialog_open = false;
     is_options_loading = false;
+    is_turbo_mode = false;
     current_duration_min_max = {
         min: 0,
         max: 10,
@@ -77,6 +79,7 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
             is_open: observable,
             is_stop_bot_dialog_open: observable,
             is_options_loading: observable,
+            is_turbo_mode: observable,
             initializeLossThresholdWarningData: action,
             selected_strategy: observable,
             loss_threshold_warning_data: observable,
@@ -89,6 +92,7 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
             setValue: action,
             toggleStopBotDialog: action,
             setOptionsLoading: action,
+            setTurboMode: action,
         });
         this.root_store = root_store;
         reaction(
@@ -99,6 +103,7 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
                 }
             }
         );
+        this.is_turbo_mode = localStorage.getItem('qs-is-turbo-mode') === 'true';
     }
 
     setAdditionalData = (data: Record<string, unknown>) => {
@@ -173,6 +178,13 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
                 el_block.innerHTML = value;
             });
         };
+
+        const modifyFields = (name: string, value: string) => {
+            const el_blocks = strategy_dom?.querySelectorAll(`field[name="${name}"]`);
+            el_blocks?.forEach((el_block: HTMLElement) => {
+                el_block.innerHTML = value;
+            });
+        };
         const { unit, action, type, growth_rate, ...rest_data } = data;
         const fields_to_update = {
             market,
@@ -189,7 +201,9 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
         Object.keys(fields_to_update).forEach(key => {
             const value = fields_to_update[key as keyof typeof fields_to_update];
 
-            if (!isNaN(value as number) && key !== 'growthrate') {
+            if (key === 'boolean_turbo_mode') {
+                modifyFields('TURBO_MODE', value ? 'TRUE' : 'FALSE');
+            } else if (!isNaN(value as number) && key !== 'growthrate') {
                 modifyValueInputs(key, value as number);
             } else if (typeof value === 'string') {
                 modifyFieldDropdownValues(key, value);
@@ -231,5 +245,25 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
 
     setOptionsLoading = (is_loading: boolean): void => {
         this.is_options_loading = is_loading;
+    };
+
+    setTurboMode = (is_turbo_mode: boolean, skip_workspace_sync = false): void => {
+        this.is_turbo_mode = is_turbo_mode;
+        localStorage.setItem('qs-is-turbo-mode', is_turbo_mode.toString());
+
+        if (skip_workspace_sync) return;
+
+        // Sync with workspace block if exists
+        const workspace = window.Blockly?.derivWorkspace;
+        if (workspace) {
+            const blocks = workspace.getAllBlocks(false);
+            const tradeOptionsBlock = blocks.find(b => b.type === 'trade_definition_tradeoptions');
+            if (tradeOptionsBlock) {
+                const turboModeField = tradeOptionsBlock.getField('TURBO_MODE');
+                if (turboModeField && turboModeField.getValue() !== (is_turbo_mode ? 'TRUE' : 'FALSE')) {
+                    tradeOptionsBlock.setFieldValue(is_turbo_mode ? 'TRUE' : 'FALSE', 'TURBO_MODE');
+                }
+            }
+        }
     };
 }

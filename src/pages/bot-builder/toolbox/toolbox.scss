@@ -11,6 +11,37 @@
     $toolbox: &;
     $category-text-spacing: 10px;
 
+    &__turbo-mode {
+        background-color: var(--general-main-1);
+        padding: 0.8rem 1.2rem;
+        margin: 0.8rem 0;
+        border: 1px solid var(--general-section-1);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        &__label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            color: var(--text-general);
+        }
+
+        .dc-toggle-switch__label {
+            width: 3.2rem;
+            height: 1.6rem;
+            padding: 0 0.2rem;
+
+            .dc-toggle-switch__button {
+                width: 1.2rem;
+                height: 1.2rem;
+            }
+        }
+    }
+
     &__title {
         height: 2.6rem;
         line-height: 2.6rem;

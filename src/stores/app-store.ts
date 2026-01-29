@@ -325,8 +325,17 @@ export default class AppStore {
     };
 
     setDBotEngineStores = () => {
-        const { flyout, toolbar, save_modal, dashboard, load_modal, run_panel, blockly_store, summary_card } =
-            this.root_store;
+        const {
+            flyout,
+            toolbar,
+            save_modal,
+            dashboard,
+            load_modal,
+            run_panel,
+            blockly_store,
+            summary_card,
+            quick_strategy,
+        } = this.root_store;
         const { client, common } = this.core;
         const { handleFileChange } = load_modal;
         const { setLoading } = blockly_store;
@@ -343,6 +352,7 @@ export default class AppStore {
             dashboard,
             load_modal,
             run_panel,
+            quick_strategy,
             setLoading,
             setContractUpdateConfig,
             handleFileChange,

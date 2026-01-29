@@ -134,4 +134,4 @@ window.Blockly.Blocks.trade_definition_market = {
     },
 };
 
-window.Blockly.JavaScript.javascriptGenerator.forBlock.trade_definition_market = () => {};
+window.Blockly.JavaScript.javascriptGenerator.forBlock.trade_definition_market = () => { };

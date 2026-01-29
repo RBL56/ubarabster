@@ -211,6 +211,18 @@
                     padding: 0.8rem var(--group-outer-padding) 1.6rem;
                     margin-bottom: 1.6rem;
 
+                    &--turbo {
+                        background-color: var(--general-main-1); // White/Main background
+                        padding: 0.8rem var(--group-outer-padding);
+                        display: flex;
+                        align-items: center;
+                        min-height: 5.6rem;
+
+                        .qs__form__field {
+                            margin-bottom: 0;
+                        }
+                    }
+
                     &:last-child {
                         margin-bottom: 2rem;
                     }
@@ -626,6 +638,7 @@
 
         &__container {
             @extend .x-center;
+            justify-content: space-between;
 
             height: calc(var(--input-height) - 0.5rem);
             width: 100%;
@@ -709,6 +722,7 @@
 }
 
 .sell_conditions {
+
     &__take_profit,
     &__tick_count {
         margin-bottom: 0.8rem;

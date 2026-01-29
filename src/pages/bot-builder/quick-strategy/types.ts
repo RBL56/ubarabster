@@ -23,9 +23,9 @@ export interface ValidationObject {
 export type TValidationItem =
     | TValidationType
     | ({
-          type: TValidationType;
-          value?: number | string;
-      } & ValidationObject);
+        type: TValidationType;
+        value?: number | string;
+    } & ValidationObject);
 
 export type TStrategyDescription = {
     item: TDescriptionItem;
@@ -48,6 +48,8 @@ export type TConfigItem = Partial<{
     }[];
     hide_without_should_have: boolean;
     has_currency_unit: boolean;
+    icon?: string;
+    hide_optional?: boolean;
 }>;
 
 export type TDescriptionItem = Partial<{

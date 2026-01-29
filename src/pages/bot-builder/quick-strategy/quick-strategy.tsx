@@ -84,6 +84,7 @@ const FormikWrapper: React.FC<TFormikWrapper> = observer(({ children }) => {
             boolean_tick_count: data?.boolean_tick_count ?? false,
             max_payout: data?.max_payout ?? 0,
             max_ticks: data?.max_ticks ?? 0,
+            boolean_turbo_mode: quick_strategy.is_turbo_mode,
         };
         return initial_value;
     };
@@ -121,10 +122,10 @@ const FormikWrapper: React.FC<TFormikWrapper> = observer(({ children }) => {
                         }
                         const should_validate = field.should_have
                             ? field.should_have?.every(item => {
-                                  const item_value = formikData?.[item.key]?.toString();
-                                  if (item.multiple) return item.multiple.includes(item_value);
-                                  return formikData?.[item.key] === item.value;
-                              })
+                                const item_value = formikData?.[item.key]?.toString();
+                                if (item.multiple) return item.multiple.includes(item_value);
+                                return formikData?.[item.key] === item.value;
+                            })
                             : true;
                         if (should_validate && field.name === 'max_stake') {
                             min = +form_data?.stake;
