@@ -137,6 +137,7 @@ const SpeedBot = observer(() => {
     const takeProfitEnabledRef = useRef(takeProfitEnabled);
     const stopLossConsecutiveRef = useRef(stopLossConsecutive);
     const stopLossConsecutiveEnabledRef = useRef(stopLossConsecutiveEnabled);
+    const transactionsRef = useRef(transactions);
 
     // -- New Refs for Config to fix stale closures --
     const volatilityRef = useRef(volatility);
@@ -160,6 +161,7 @@ const SpeedBot = observer(() => {
 
     // -- Run Mode & Mutex --
     const [runMode, setRunMode] = useState<'continuous' | 'once'>('continuous');
+    const runModeRef = useRef(runMode);
     const [showRunMenu, setShowRunMenu] = useState(false); // For the dropdown
     const runMenuRef = useRef<HTMLDivElement>(null);
 
@@ -203,6 +205,7 @@ const SpeedBot = observer(() => {
     useEffect(() => { predPostRef.current = predPost; }, [predPost]);
     useEffect(() => { recoveryContractTypeRef.current = recoveryContractType; }, [recoveryContractType]);
     useEffect(() => { predictionsRef.current = predictions; }, [predictions]);
+    useEffect(() => { runModeRef.current = runMode; }, [runMode]);
 
     useEffect(() => { isAutoTradingRef.current = isAutoTrading; }, [isAutoTrading]);
     useEffect(() => { martingaleEnabledRef.current = martingaleEnabled; }, [martingaleEnabled]);
@@ -218,6 +221,7 @@ const SpeedBot = observer(() => {
     useEffect(() => { takeProfitEnabledRef.current = takeProfitEnabled; }, [takeProfitEnabled]);
     useEffect(() => { stopLossConsecutiveRef.current = stopLossConsecutive; }, [stopLossConsecutive]);
     useEffect(() => { stopLossConsecutiveEnabledRef.current = stopLossConsecutiveEnabled; }, [stopLossConsecutiveEnabled]);
+    useEffect(() => { transactionsRef.current = transactions; }, [transactions]);
 
 
     const addJournal = useCallback((msg: string, type: JournalEntry['type'] = 'info', barrier?: number | string) => {
@@ -717,16 +721,22 @@ const SpeedBot = observer(() => {
         }
 
         // Check Entry and Execute
-        // Performance optimization: after first trigger, run continuously
-        const isEntryMet = hasTriggeredEntryRef.current || checkEntryCondition();
+        const isEntryMet = checkEntryCondition();
 
         if (isEntryMet) {
-            if (!hasTriggeredEntryRef.current) {
-                console.log('[SpeedBot] Entry condition met for the first time. Starting continuous trading.');
-                hasTriggeredEntryRef.current = true;
-            }
-            setDebugStatus('Running (Continuous)');
+            console.log('[SpeedBot] Entry condition met. Executing trade.');
+
+            setDebugStatus(runModeRef.current === 'once' ? 'Running (Once)' : 'Running (Continuous)');
             tradeOnce(currentStakeRef.current);
+
+            // If in 'once' mode, stop auto-trader after placing the trade
+            if (runModeRef.current === 'once') {
+                console.log('[SpeedBot] Run Once complete. Stopping auto-trader.');
+                setIsAutoTrading(false);
+                isAutoTradingRef.current = false;
+                botObserver.emit('bot.stop');
+                run_panel.setIsRunning(false);
+            }
         } else {
             setDebugStatus('Waiting for entry condition...');
         }
@@ -1020,12 +1030,17 @@ const SpeedBot = observer(() => {
                 // DEBUG: Force log
                 // addJournal(`Stream: ${contractId} ${poc.status}`, 'info');
 
-                if (isActive || transactions.some(t => String(t.id) === contractId)) {
+                // Use Ref for check to avoid stale closure issues
+                const isKnownContract = activeContractIdsRef.current.has(contractId) ||
+                    transactionsRef.current.some(t => String(t.id) === contractId);
+
+                if (isKnownContract) {
                     // Log significant updates
                     if (poc.status === 'won' || poc.status === 'lost') {
                         addJournal(`Result: ${contractId} ${poc.status.toUpperCase()}`, poc.status === 'won' ? 'success' : 'error');
                     }
                 }
+
                 let statusToProcess: Transaction['status'] | null = null;
 
                 setTransactions(prev => {
@@ -1753,6 +1768,12 @@ const SpeedBot = observer(() => {
 
                         <div className='metrics'>
                             <div className='metric'>
+                                <div className='label'>Balance</div>
+                                <div className='value' style={{ color: '#2ea3f2' }}>
+                                    {client.balance} {client.currency}
+                                </div>
+                            </div>
+                            <div className='metric'>
                                 <div className='label'>Entropy</div>
                                 <div className='value'>{entropy}</div>
                             </div>
@@ -1771,11 +1792,8 @@ const SpeedBot = observer(() => {
                                         if (isAutoTrading) {
                                             startAuto(); // Stop
                                         } else {
-                                            if (runMode === 'once') {
-                                                tradeOnce();
-                                            } else {
-                                                startAuto();
-                                            }
+                                            // Always use startAuto to allow waiting for entry condition
+                                            startAuto();
                                         }
                                     }}
                                     style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
@@ -1900,6 +1918,12 @@ const SpeedBot = observer(() => {
                                         Let's re-add the bot status block here. 
                                     */}
                                     <div className='bot-status' style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div className='metric' style={{ background: '#1e293b', gridColumn: 'span 2' }}>
+                                            <div className='label'>Account Balance</div>
+                                            <div className='value' style={{ color: '#2ea3f2' }}>
+                                                {client.balance} {client.currency}
+                                            </div>
+                                        </div>
                                         <div className='metric' style={{ background: '#1e293b' }}>
                                             <div className='label'>Last Result</div>
                                             <div className='value' style={{
@@ -2078,6 +2102,9 @@ const SpeedBot = observer(() => {
                                                 setTotalWins(0);
                                                 setTotalLosses(0);
                                                 setJournal([]);
+                                                activeContractIdsRef.current.clear();
+                                                pendingBatchRef.current.clear();
+                                                hasTriggeredEntryRef.current = false;
                                             }}
                                         >
                                             Reset

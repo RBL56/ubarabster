@@ -167,6 +167,17 @@ class CopyTradingService {
                     ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
                     this.notify(`Client Connected: ${data.authorize.loginid}`, 'success');
                 }
+
+                if (data.balance) {
+                    const balanceData = data.balance;
+                    const clientIdx = this.clients.findIndex(c => c.token === client.token);
+                    if (clientIdx !== -1) {
+                        const newBalance = `${balanceData.balance.toFixed(2)} ${balanceData.currency}`;
+                        this.clients[clientIdx].balance = newBalance;
+                        console.log(`[CopyTradingService] Updated balance for ${client.loginid}: ${newBalance}`);
+                        this.saveSettings(); // Persist the updated balance
+                    }
+                }
             };
 
             ws.onerror = () => {
