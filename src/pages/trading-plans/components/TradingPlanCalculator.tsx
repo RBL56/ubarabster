@@ -417,6 +417,49 @@ const TradingPlanCalculator = () => {
                             </tbody>
                         </table>
                     </div>
+
+                    <div className='plan-cards-container'>
+                        {planData.map(row => (
+                            <div key={row.day} className='plan-card'>
+                                <div className='card-header'>
+                                    <div className='day-badge'>{localize('Day')} {row.day}</div>
+                                    <div className='cum-pct'>{row.cumPct}% ROI</div>
+                                </div>
+                                <div className='card-body'>
+                                    <div className='info-row'>
+                                        <span className='label'>{localize('Starting')}</span>
+                                        <span className='value'>${row.start}</span>
+                                    </div>
+                                    <div className='info-row'>
+                                        <span className='label'>{localize('Ending')}</span>
+                                        <span className='value emphasis'>${row.end}</span>
+                                    </div>
+
+                                    <div className='sessions-breakdown'>
+                                        {sessionsPerDay === 1 ? (
+                                            <div className='info-row highlight-green'>
+                                                <span className='label'>{localize('Profit')}</span>
+                                                <span className='value'>+${row.profit}</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {row.sessionProfits.map((sp, i) => (
+                                                    <div key={i} className='session-item'>
+                                                        <span className='label'>{localize('Session')} {i + 1}</span>
+                                                        <span className='value'>+${sp}</span>
+                                                    </div>
+                                                ))}
+                                                <div className='info-row highlight-green total-profit'>
+                                                    <span className='label'>{localize('Total Profit')}</span>
+                                                    <span className='value'>+${row.profit}</span>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>
