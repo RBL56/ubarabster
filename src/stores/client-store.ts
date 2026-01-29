@@ -504,6 +504,11 @@ export default class ClientStore {
 
             this.setBalance(newBalance);
             this.setCurrency(newCurrency);
+
+            // Also keep the primary accounts record in sync
+            if (this.accounts[this.loginid]) {
+                this.accounts[this.loginid].balance = parseFloat(newBalance);
+            }
         }
     };
 

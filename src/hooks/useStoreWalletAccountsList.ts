@@ -87,7 +87,10 @@ const useStoreWalletAccountsList = () => {
                     const landing_company_name = wallet.landing_company_name?.replace('maltainvest', 'malta');
                     const is_malta_wallet = landing_company_name === 'malta';
                     const dtrade_loginid = wallet?.linked_to?.find(account => account?.platform === 'dtrade')?.loginid;
-                    const dtrade_balance = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance;
+                    const dtrade_balance = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance ??
+                        accounts?.[dtrade_loginid ?? '']?.balance ??
+                        (accounts?.[dtrade_loginid ?? ''] as any)?.dtrade_balance ??
+                        wallet.balance;
                     const is_dtrader_account_disabled = Boolean(accounts?.[dtrade_loginid ?? '']?.is_disabled);
 
                     const wallet_currency_type = is_virtual ? 'Demo' : currency || '';
