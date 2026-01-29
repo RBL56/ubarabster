@@ -1,4 +1,3 @@
-import React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useStore } from '@/hooks/useStore';
 import Modal from '@/components/shared_ui/modal';
@@ -6,12 +5,6 @@ import { localize } from '@deriv-com/translations';
 import './VirtualHookModal.scss';
 
 // Simple Icons
-const HookIcon = () => (
-    <svg viewBox="0 0 24 24">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
-    </svg>
-);
-
 const TargetIcon = () => (
     <svg viewBox="0 0 24 24">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z" />
@@ -55,7 +48,17 @@ const VirtualHookModal = observer(({ is_open, onClose }: Partial<VirtualHookModa
     } = client.virtual_hook_settings;
 
     const toggleEnabled = () => {
-        client.setVirtualHookSettings({ is_enabled: !is_enabled });
+        const next_enabled = !is_enabled;
+        client.setVirtualHookSettings({ is_enabled: next_enabled });
+
+        // Sync with Blockly workspace if available
+        if (window.Blockly?.derivWorkspace) {
+            const blocks = window.Blockly.derivWorkspace.getAllBlocks();
+            const market_block = blocks.find(b => b.type === 'trade_definition_market');
+            if (market_block) {
+                market_block.setFieldValue(next_enabled ? 'TRUE' : 'FALSE', 'VIRTUAL_HOOK');
+            }
+        }
     };
 
     const updateCondition = (type: 'virtual' | 'real', value: number | string) => {
@@ -70,7 +73,7 @@ const VirtualHookModal = observer(({ is_open, onClose }: Partial<VirtualHookModa
     const incrementVirtual = () => updateCondition('virtual', 1);
     const decrementVirtual = () => updateCondition('virtual', -1);
 
-    if (!is_open) return null;
+    if (!isOpen) return null;
 
     return (
         <Modal

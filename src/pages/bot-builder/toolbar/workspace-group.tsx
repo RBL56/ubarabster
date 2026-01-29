@@ -9,6 +9,7 @@ import {
     LabelPairedChartTradingviewMdRegularIcon,
     LabelPairedFloppyDiskMdRegularIcon,
     LabelPairedFolderOpenMdRegularIcon,
+    LabelPairedGearMdRegularIcon,
     LabelPairedMagnifyingGlassMinusMdRegularIcon,
     LabelPairedMagnifyingGlassPlusMdRegularIcon,
     LabelPairedObjectsAlignLeftMdRegularIcon,
@@ -24,6 +25,7 @@ const WorkspaceGroup = observer(() => {
     const { has_redo_stack, has_undo_stack, onResetClick, onSortClick, onUndoClick, onZoomInOutClick } = toolbar;
     const { toggleSaveModal } = save_modal;
     const { toggleLoadModal } = load_modal;
+    const { client } = useStore();
     const { isDesktop } = useDevice();
 
     return (
@@ -174,6 +176,20 @@ const WorkspaceGroup = observer(() => {
                             onClick={() => onZoomInOutClick(/* in */ false)}
                         >
                             <LabelPairedMagnifyingGlassMinusMdRegularIcon />
+                        </span>
+                    }
+                />
+                <div className='vertical-divider' />
+                <ToolbarIcon
+                    popover_message={localize('VT Settings')}
+                    icon={
+                        <span
+                            className='toolbar__icon'
+                            id='db-toolbar__vh-settings-button'
+                            data-testid='dt_toolbar_vh_settings_button'
+                            onClick={() => client.setVirtualHookModalOpen(true)}
+                        >
+                            <LabelPairedGearMdRegularIcon />
                         </span>
                     }
                 />

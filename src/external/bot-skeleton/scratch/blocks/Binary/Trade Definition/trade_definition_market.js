@@ -122,6 +122,11 @@ window.Blockly.Blocks.trade_definition_market = {
             } else if (event.name === 'SYMBOL_LIST') {
                 const new_symbol = symbol_dropdown.getValue();
                 DBotStore.instance.dashboard.setBotBuilderSymbol(new_symbol);
+            } else if (event.name === 'VIRTUAL_HOOK') {
+                const is_checked = this.getFieldValue('VIRTUAL_HOOK') === 'TRUE';
+                if (DBotStore.instance && DBotStore.instance.client) {
+                    DBotStore.instance.client.setVirtualHookSettings({ is_enabled: is_checked });
+                }
             }
         } else if (
             event.type === window.Blockly.Events.BLOCK_DRAG &&
@@ -130,6 +135,14 @@ window.Blockly.Blocks.trade_definition_market = {
         ) {
             if (market_dropdown.isEmpty() || submarket_dropdown.isEmpty() || symbol_dropdown.isEmpty()) {
                 populateMarketDropdown();
+            }
+        }
+
+        // Sync initial state if needed
+        if (event.type === window.Blockly.Events.BLOCK_CREATE && event.ids.includes(this.id)) {
+            const is_checked = this.getFieldValue('VIRTUAL_HOOK') === 'TRUE';
+            if (DBotStore.instance && DBotStore.instance.client) {
+                DBotStore.instance.client.setVirtualHookSettings({ is_enabled: is_checked });
             }
         }
     },

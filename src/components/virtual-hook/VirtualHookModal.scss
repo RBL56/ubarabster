@@ -15,7 +15,7 @@
         background-color: #151725;
         color: #ffffff;
         border: 1px solid #333;
-        width: 500px !important;
+        width: 350px !important;
     }
 
     .dc-modal-header {
@@ -34,13 +34,13 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        margin-bottom: 1rem;
+        margin-bottom: 0.8rem;
 
         .icon-container {
-            width: 60px;
-            height: 60px;
+            width: 48px;
+            height: 48px;
             background-color: #FFA500;
-            border-radius: 12px;
+            border-radius: 10px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -48,23 +48,21 @@
             box-shadow: 0 0 20px rgba(255, 165, 0, 0.3);
 
             svg {
-                width: 30px;
-                height: 30px;
+                width: 24px;
+                height: 24px;
                 fill: #ffffff;
             }
         }
 
         h2 {
-            font-size: 2rem;
+            font-size: 1.6rem;
             font-weight: bold;
             margin: 0;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.3rem;
         }
 
         p {
-            font-size: 1.2rem;
-            color: #888;
-            margin: 0;
+            display: none;
         }
     }
 
@@ -72,14 +70,14 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-bottom: 2rem;
-        gap: 1rem;
+        margin-bottom: 1.5rem;
+        gap: 0.8rem;
 
         .toggle-label {
             font-weight: bold;
             color: #FFA500;
             text-transform: uppercase;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
         }
     }
 
@@ -89,9 +87,9 @@
 
     &__setting-card {
         background-color: #1F2235;
-        border-radius: 12px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
+        border-radius: 8px;
+        padding: 0.8rem;
+        margin-bottom: 0.8rem;
         border: 1px solid #2a2e45;
         display: flex;
         align-items: center;
@@ -100,12 +98,12 @@
         &--left {
             display: flex;
             align-items: center;
-            gap: 1.5rem;
+            gap: 1rem;
             flex: 1;
 
             .setting-icon {
-                width: 40px;
-                height: 40px;
+                width: 32px;
+                height: 32px;
                 background-color: #2a2e45;
                 border-radius: 50%;
                 display: flex;
@@ -113,30 +111,27 @@
                 align-items: center;
 
                 svg {
-                    width: 20px;
-                    height: 20px;
+                    width: 16px;
+                    height: 16px;
                     fill: #888;
                 }
             }
 
             .setting-info {
                 h3 {
-                    font-size: 1.4rem;
-                    margin: 0 0 0.4rem 0;
+                    font-size: 1.2rem;
+                    margin: 0 0 0.2rem 0;
                     color: white;
                 }
 
                 p {
-                    font-size: 1.1rem;
-                    color: #888;
-                    margin: 0;
-                    line-height: 1.3;
+                    display: none;
                 }
             }
         }
 
         &--right {
-            flex-basis: 40%;
+            flex-basis: 35%;
             display: flex;
             justify-content: flex-end;
 
@@ -144,10 +139,11 @@
                 background-color: #2a2e45;
                 border: 1px solid #3e4361;
                 color: white;
-                padding: 0.8rem;
-                border-radius: 6px;
+                padding: 0.6rem;
+                border-radius: 4px;
                 width: 100%;
                 text-align: left;
+                font-size: 1.1rem;
 
                 &:focus {
                     border-color: #FFA500;
@@ -170,9 +166,9 @@
                 background-color: #3e4361;
                 border: none;
                 color: white;
-                width: 30px;
-                height: 30px;
-                border-radius: 6px;
+                width: 26px;
+                height: 26px;
+                border-radius: 4px;
                 cursor: pointer;
                 display: flex;
                 align-items: center;
@@ -187,7 +183,7 @@
             span {
                 color: #FFA500;
                 font-weight: bold;
-                font-size: 1.4rem;
+                font-size: 1.1rem;
             }
         }
     }
@@ -197,10 +193,10 @@
         background-color: #FFA500;
         color: #000;
         border: none;
-        padding: 1.2rem;
-        border-radius: 8px;
+        padding: 1rem;
+        border-radius: 6px;
         font-weight: bold;
-        font-size: 1.4rem;
+        font-size: 1.3rem;
         cursor: pointer;
         display: flex;
         align-items: center;
