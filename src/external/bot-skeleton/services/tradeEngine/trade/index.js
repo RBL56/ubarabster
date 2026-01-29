@@ -41,6 +41,7 @@ const watchScope = ({ store, stopScope, passScope, passFlag, turboMode, engine }
     // Immediate check: if we are ready and haven't handled this state/tick yet, proceed.
     const currentState = store.getState();
     if (currentState.scope === passScope && currentState[passFlag]) {
+        // In Every Tick (Turbo) mode, we resolve on every tick arrival or state update.
         if (turboMode || currentState.newTick !== engine.prevTick) {
             if (engine.stateUpdateId !== engine.lastHandledStateId) {
                 engine.lastHandledStateId = engine.stateUpdateId;
@@ -57,6 +58,7 @@ const watchScope = ({ store, stopScope, passScope, passFlag, turboMode, engine }
         const unsubscribe = store.subscribe(() => {
             const newState = store.getState();
 
+            // In Every Tick (Turbo) mode, we bypass the "new tick" check to react faster.
             if (!turboMode && newState.newTick === engine.prevTick) return;
 
             // Mark this tick/state as handled

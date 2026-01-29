@@ -59,7 +59,7 @@ window.Blockly.Blocks.trade_definition_tradeoptions = {
                     text: '',
                 },
             ],
-            message2: '%1 ' + localize('Turbo Mode') + ' %2 %3',
+            message2: '%1 ' + localize('Every Tick (Turbo Mode)') + ' %2 %3',
             args2: [
                 {
                     type: 'field_image',

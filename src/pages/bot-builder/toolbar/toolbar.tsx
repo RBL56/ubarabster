@@ -54,9 +54,7 @@ const Toolbar = observer(() => {
                                             fill='#FF8C40'
                                         />
                                     </svg>
-                                    <Text size='xs' weight='bold'>
-                                        {localize('Turbo Mode')}
-                                    </Text>
+                                    {localize('Every Tick (Turbo Mode)')}
                                 </div>
                                 <ToggleSwitch
                                     id='db-toolbar__turbo-mode-toggle'

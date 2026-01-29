@@ -281,15 +281,15 @@ const MAX_STAKE = (): TConfigItem => ({
 
 const LABEL_TURBO_MODE = (): TConfigItem => ({
     type: 'label',
-    label: localize('Turbo Mode'),
-    description: localize('The bot will trade after every tick, bypassing some default delays.'),
+    label: localize('Every Tick (Turbo Mode)'),
+    description: localize('The bot will trade on every tick, bypassing default delays for maximum speed.'),
 });
 
 const CHECKBOX_TURBO_MODE = (): TConfigItem => ({
     type: 'checkbox',
     name: 'boolean_turbo_mode',
-    label: localize('Turbo Mode'),
-    description: localize('Enable this to trade after every tick.'),
+    label: localize('Every Tick (Turbo Mode)'),
+    description: localize('Enable this to trade on every tick arrival.'),
     attached: true,
     icon: 'lightning',
     hide_optional: true,

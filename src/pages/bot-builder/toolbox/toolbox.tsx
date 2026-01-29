@@ -76,7 +76,7 @@ const Toolbox = observer(() => {
                                 fill='#FF8C40'
                             />
                         </svg>
-                        {localize('Turbo Mode')}
+                        {localize('Every Tick (Turbo Mode)')}
                     </div>
                     <ToggleSwitch
                         id='db-toolbox__turbo-mode-toggle'
