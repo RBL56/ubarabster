@@ -64,6 +64,9 @@ const Toolbar = observer(() => {
                             </div>
                         </>
                     )}
+
+
+
                     {isDesktop && <WorkspaceGroup />}
                 </div>
             </div>
@@ -95,6 +98,7 @@ const Toolbar = observer(() => {
                     <Localize i18n_default_text='Any unsaved changes will be lost.' />
                 )}
             </Dialog>
+
         </React.Fragment>
     );
 });

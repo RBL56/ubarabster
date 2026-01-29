@@ -72,7 +72,78 @@ export default Engine =>
             if (this.is_proposal_subscription_required) {
                 const { id, askPrice } = this.selectProposal(contract_type);
 
-                const action = () => api_base.api.send({ buy: id, price: askPrice });
+                const action = async () => {
+                    // VIRTUAL HOOK LOGIC START
+                    try {
+                        const DBotStore = require('../../../scratch/dbot-store').default;
+                        const { client } = DBotStore.instance || {};
+                        const vh_settings = client?.virtual_hook_settings;
+
+                        if (vh_settings?.is_enabled) {
+                            // Initialize VH state if not present
+                            if (!this.vh_state) {
+                                this.vh_state = {
+                                    mode: 'VIRTUAL', // Start in Virtual
+                                    consecutive_losses: 0,
+                                    real_trades_count: 0
+                                };
+                            }
+
+                            const is_virtual_token = (token) => {
+                                // Simple check: demo tokens usually start with 'V' or account starts with 'VR'
+                                // Better: Find account in client.accounts and check is_virtual
+                                const loginid = Object.keys(client.accounts).find(id => client.accounts[id].token === token);
+                                return client.accounts[loginid]?.is_virtual;
+                            };
+
+                            const current_token = api_base.token;
+                            const accounts = Object.values(client.accounts);
+                            const virtual_account = accounts.find(a => a.is_virtual);
+                            const real_account = accounts.find(a => !a.is_virtual);
+
+                            let target_token = current_token;
+
+                            // LOGIC: Mode Switching
+                            if (this.vh_state.mode === 'VIRTUAL') {
+                                // Check conditions to switch to REAL
+                                if (this.vh_state.consecutive_losses >= vh_settings.virtual_trades_condition) {
+                                    console.log('[VH] Condition met! Switching to REAL mode.');
+                                    this.vh_state.mode = 'REAL';
+                                    this.vh_state.real_trades_count = 0;
+                                    target_token = real_account?.token;
+                                } else {
+                                    target_token = virtual_account?.token;
+                                }
+                            } else {
+                                // REAL Mode
+                                // Check conditions to switch back to VIRTUAL
+                                const limit = vh_settings.real_trades_condition === 'Immediately' ? 1 : parseInt(vh_settings.real_trades_condition);
+                                if (this.vh_state.real_trades_count >= limit) {
+                                    console.log('[VH] Real trades done. Switching back to VIRTUAL mode.');
+                                    this.vh_state.mode = 'VIRTUAL';
+                                    this.vh_state.consecutive_losses = 0;
+                                    target_token = virtual_account?.token;
+                                } else {
+                                    target_token = real_account?.token;
+                                }
+                            }
+
+                            // Execute Switch
+                            if (target_token && target_token !== current_token) {
+                                console.log(`[VH] Switching token to: ${target_token}`);
+                                await api_base.api.authorize(target_token);
+                                // Update client store to reflect active account UI
+                                const new_loginid = Object.keys(client.accounts).find(id => client.accounts[id].token === target_token);
+                                if (new_loginid) client.setLoginId(new_loginid);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('[VH] Error in Virtual Hook logic:', e);
+                    }
+                    // VIRTUAL HOOK LOGIC END
+
+                    return api_base.api.send({ buy: id, price: askPrice });
+                };
 
                 this.isSold = false;
 
@@ -82,7 +153,17 @@ export default Engine =>
                 });
 
                 if (!this.options.timeMachineEnabled) {
-                    return doUntilDone(action).then(onSuccess);
+                    return doUntilDone(action).then(onSuccess).then(() => {
+                        // UPDATE VH INVALID STATE ON COMPLETION
+                        const DBotStore = require('../../../scratch/dbot-store').default;
+                        const { client } = DBotStore.instance || {};
+                        const vh_settings = client?.virtual_hook_settings;
+
+                        // We check contract result
+                        // The `onSuccess` callback receives `response`.
+                        // But here we are IN the promise chain.
+                        // We need to capture the result.
+                    });
                 }
 
                 return recoverFromError(

@@ -16,6 +16,7 @@ import { Header, useDevice, Wrapper } from '@deriv-com/ui';
 import { AppLogo } from '../app-logo';
 import AccountSwitcher from './account-switcher';
 import MobileMenu from './mobile-menu';
+
 import './header.scss';
 
 const AppHeader = observer(() => {
@@ -32,7 +33,9 @@ const AppHeader = observer(() => {
 
     const { onRenderTMBCheck, isTmbEnabled } = useTMB();
     const [apiToken, setApiToken] = useState('');
+
     const [isApiModalOpen, setIsApiModalOpen] = useState(false);
+
 
     const handleApiTokenLogin = async () => {
         const token = apiToken.trim();
@@ -160,6 +163,8 @@ const AppHeader = observer(() => {
                                         primary
                                     />
                                 ) : null}
+
+
 
                                 <Button
                                     tertiary
@@ -311,6 +316,9 @@ const AppHeader = observer(() => {
                     </Modal.Footer>
                 </Modal>
             )}
+
+
+
         </Header>
     );
 });

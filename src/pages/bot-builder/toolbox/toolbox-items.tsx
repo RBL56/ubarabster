@@ -56,6 +56,100 @@ export const ToolboxItems = () => {
 
     return ReactDomServer.renderToStaticMarkup(
         <Xml xmlns='http://www.w3.org/1999/xhtml' id='toolbox'>
+            <Category id='loco_tools' name={localize('LOCO TOOLS')}>
+                <Category id='virtual_hook' name={localize('Virtual Hook')}>
+                    <Block type='virtual_hook'>
+                        <Field name='ENABLE_MARTINGALE'>false</Field>
+                        <Field name='MARTINGALE_FACTOR'>1.5</Field>
+                        <Field name='MAX_STEPS'>3</Field>
+                        <Field name='MIN_TRADES'>1</Field>
+                        <Field name='TAKE_PROFIT'>5</Field>
+                        <Field name='STOP_LOSS'>50</Field>
+                    </Block>
+                    <Block type='vh_token_authorizer'>
+                        <Field name='VH_TOKEN'>--Token--</Field>
+                    </Block>
+                    <Block type='vh_enabler'>
+                        <Field name='VH_STATUS'>disable</Field>
+                    </Block>
+                    <Block type='vh_status' />
+                </Category>
+                <Category id='contract_modifiers' name={localize('Contract modifiers')}>
+                    <Block type='contract_type_switcher'>
+                        <Field name='CONTRACT_SWITCHER_STATUS'>disable</Field>
+                    </Block>
+                    <Block type='custom_prediction_setter'>
+                        <Field name='CUSTOM_PREDICTION'>1</Field>
+                    </Block>
+                    <Block type='market_symbol_changer'>
+                        <Field name='SYMBOL_CHANGER_STATUS'>disable</Field>
+                    </Block>
+                </Category>
+                <Category id='barrier_changer' name={localize('Barrier Changer')}>
+                    <Block type='barrier_changer_enabler'>
+                        <Field name='BARRIER_CHANGER_STATUS'>disable</Field>
+                    </Block>
+                    <Block type='barrier_changer_value'>
+                        <Value name='BARRIER_VALUE'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>0</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                </Category>
+                <Category id='copy_trading' name={localize('Copy Trading')}>
+                    <Block type='copy_trading_settings'>
+                        <Field name='TOKEN'>Your Token</Field>
+                        <Field name='MAX_STAKE'>10</Field>
+                        <Field name='ENABLE'>true</Field>
+                    </Block>
+                </Category>
+                <Category id='tp_sl_indicators' name={localize('TP/SL Indicators')}>
+                    <Block type='loco_take_profit'>
+                        <Value name='AMOUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>0</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='loco_stop_loss'>
+                        <Value name='AMOUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>0</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                </Category>
+                <Category id='prediction' name={localize('Prediction')}>
+                    <Block type='custom_prediction_setter'>
+                        <Field name='CUSTOM_PREDICTION'>0</Field>
+                    </Block>
+                    <Block type='prediction_setter_v2'>
+                        <Value name='PREDICTION_VALUE'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>0</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                    <Block type='check_last_digits_equality'>
+                        <Value name='DIGITS_COUNT'>
+                            <Shadow type='math_number'>
+                                <Field name='NUM'>1</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                </Category>
+                <Category id='loco_notifications' name={localize('Loco Notifications')}>
+                    <Block type='notify'>
+                        <Field name='NOTIFICATION_TYPE'>success</Field>
+                        <Value name='MESSAGE'>
+                            <Shadow type='text'>
+                                <Field name='TEXT'>LOCO: Notification</Field>
+                            </Shadow>
+                        </Value>
+                    </Block>
+                </Category>
+            </Category>
             <Category id='trade_parameters' name={localize('Trade parameters')}>
                 <Block type='trade_definition'>
                     <Statement name='TRADE_OPTIONS'>
@@ -862,6 +956,8 @@ export const ToolboxItems = () => {
                     </Block>
                 </Category>
             </Category>
+
+
 
             <Examples id='examples'>
                 <Example id='sell_available'>

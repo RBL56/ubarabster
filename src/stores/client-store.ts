@@ -35,6 +35,23 @@ export default class ClientStore {
     // TODO: fix with self exclusion
     updateSelfExclusion = () => { };
 
+    virtual_hook_settings = {
+        is_enabled: false,
+        enable_after_initial: 'Immediately', // 'Immediately' or number of trades
+        virtual_trades_condition: 2, // Number of consecutive losses
+        real_trades_condition: 'Immediately', // 'Immediately' or number of trades
+    };
+
+    setVirtualHookSettings = (settings: Partial<typeof this.virtual_hook_settings>) => {
+        this.virtual_hook_settings = { ...this.virtual_hook_settings, ...settings };
+    };
+
+    is_virtual_hook_modal_open = false;
+
+    setVirtualHookModalOpen = (is_open: boolean) => {
+        this.is_virtual_hook_modal_open = is_open;
+    };
+
     private authDataSubscription: { unsubscribe: () => void } | null = null;
     private balanceSubscription: { unsubscribe: () => void } | null = null;
 
@@ -140,6 +157,10 @@ export default class ClientStore {
             upgradeable_landing_companies: observable,
             website_status: observable,
             is_logging_out: observable,
+            virtual_hook_settings: observable,
+            setVirtualHookSettings: action,
+            is_virtual_hook_modal_open: observable,
+            setVirtualHookModalOpen: action,
             active_accounts: computed,
             clients_country: computed,
             is_bot_allowed: computed,

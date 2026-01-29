@@ -40,6 +40,7 @@ import TradingView from '../tradingview';
 import './main.scss';
 
 const ChartWrapper = lazy(() => import('../chart/chart-wrapper'));
+import VirtualHookModal from '@/components/virtual-hook/VirtualHookModal';
 
 const AppWrapper = observer(() => {
     const { connectionStatus } = useApiBase();
@@ -449,6 +450,7 @@ const AppWrapper = observer(() => {
             >
                 {message}
             </Dialog>
+            <VirtualHookModal />
         </React.Fragment>
     );
 });
