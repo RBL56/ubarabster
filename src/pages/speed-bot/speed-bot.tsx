@@ -2017,7 +2017,28 @@ const SpeedBot = observer(() => {
                                                                 <div style={{ fontSize: '11px', color: '#9fb3c8' }}>
                                                                     <span style={{ color: '#22c55e' }}>W:{stats.won}</span> / <span style={{ color: '#ff444f' }}>L:{stats.lost}</span> / <span style={{ color: '#aaa' }}>T:{stats.total}</span>
                                                                 </div>
-                                                                <div style={{ fontSize: '10px', opacity: 0.7 }}>
+                                                                <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                                                    {contracts.map(c => (
+                                                                        <span
+                                                                            key={c.id}
+                                                                            className={clsx('exit-digit-badge', c.status)}
+                                                                            style={{
+                                                                                fontSize: '10px',
+                                                                                padding: '1px 5px',
+                                                                                borderRadius: '4px',
+                                                                                background: c.status === 'won' ? 'rgba(34, 197, 94, 0.15)' : c.status === 'lost' ? 'rgba(255, 68, 79, 0.15)' : 'rgba(159, 179, 200, 0.05)',
+                                                                                color: c.status === 'won' ? '#22c55e' : c.status === 'lost' ? '#ff444f' : '#9fb3c8',
+                                                                                border: `1px solid ${c.status === 'won' ? 'rgba(34, 197, 94, 0.4)' : c.status === 'lost' ? 'rgba(255, 68, 79, 0.4)' : 'rgba(159, 179, 200, 0.2)'}`,
+                                                                                minWidth: '16px',
+                                                                                textAlign: 'center',
+                                                                                fontWeight: '600'
+                                                                            }}
+                                                                        >
+                                                                            {c.exit_digit !== undefined ? c.exit_digit : '—'}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px' }}>
                                                                     {stats.running > 0 ? `${stats.running} running...` : 'Completed'}
                                                                 </div>
                                                             </div>
