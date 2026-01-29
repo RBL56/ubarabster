@@ -130,7 +130,7 @@ const useStoreWalletAccountsList = () => {
 
         return [...wallets].sort((a, b) => {
             if (a.is_virtual !== b.is_virtual) {
-                return a.is_virtual ? 1 : -1;
+                return a.is_virtual ? -1 : 1;
             }
 
             return (a.currency || 'USD').localeCompare(b.currency || 'USD');

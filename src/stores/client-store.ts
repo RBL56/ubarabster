@@ -52,6 +52,23 @@ export default class ClientStore {
             if (client_accounts) {
                 try {
                     this.accounts = JSON.parse(client_accounts);
+
+                    // Hydrate all_accounts_balance from client_accounts to ensure last known balances are visible
+                    const hydrated_balances: Record<string, { balance: number; currency: string }> = {};
+                    Object.values(this.accounts).forEach(account => {
+                        if (account.loginid && (account.balance !== undefined || (account as any).dtrade_balance !== undefined)) {
+                            hydrated_balances[account.loginid] = {
+                                balance: parseFloat(account.balance?.toString() || (account as any).dtrade_balance?.toString() || '0'),
+                                currency: account.currency || 'USD'
+                            };
+                        }
+                    });
+
+                    if (Object.keys(hydrated_balances).length > 0) {
+                        this.all_accounts_balance = {
+                            accounts: hydrated_balances,
+                        } as any;
+                    }
                 } catch (e) {
                     console.error('Failed to parse clientAccounts during hydration', e);
                 }

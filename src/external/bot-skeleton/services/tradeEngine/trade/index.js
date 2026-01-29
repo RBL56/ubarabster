@@ -38,12 +38,15 @@ const watchDuring = (store, turboMode, engine) =>
     });
 
 const watchScope = ({ store, stopScope, passScope, passFlag, turboMode, engine }) => {
-    // Immediate check for Turbo Mode: if we are ready and haven't handled this state increment yet, proceed.
+    // Immediate check: if we are ready and haven't handled this state/tick yet, proceed.
     const currentState = store.getState();
-    if (turboMode && currentState.scope === passScope && currentState[passFlag]) {
-        if (engine.stateUpdateId !== engine.lastHandledStateId) {
-            engine.lastHandledStateId = engine.stateUpdateId;
-            return Promise.resolve(true);
+    if (currentState.scope === passScope && currentState[passFlag]) {
+        if (turboMode || currentState.newTick !== engine.prevTick) {
+            if (engine.stateUpdateId !== engine.lastHandledStateId) {
+                engine.lastHandledStateId = engine.stateUpdateId;
+                engine.prevTick = currentState.newTick;
+                return Promise.resolve(true);
+            }
         }
     }
 
@@ -55,9 +58,9 @@ const watchScope = ({ store, stopScope, passScope, passFlag, turboMode, engine }
             const newState = store.getState();
 
             if (!turboMode && newState.newTick === engine.prevTick) return;
-            engine.prevTick = newState.newTick;
 
-            // Mark this state as handled so the next immediate check in the loop yields.
+            // Mark this tick/state as handled
+            engine.prevTick = newState.newTick;
             engine.lastHandledStateId = engine.stateUpdateId;
 
             if (newState.scope === passScope && newState[passFlag]) {
