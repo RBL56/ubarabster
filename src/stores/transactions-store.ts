@@ -172,6 +172,7 @@ export default class TransactionsStore {
         // Notify copy trading service of new buy transactions
         if (contract.transaction_ids?.buy && !is_completed && contract.contract_type) {
             // Extract trade details for copy trading
+            const c = contract as any; // Cast to access potential extra properties
             const tradeData = {
                 contract_type: contract.contract_type,
                 amount: contract.buy_price,
@@ -180,8 +181,13 @@ export default class TransactionsStore {
                 symbol: contract.underlying || '',
                 duration: 5,
                 duration_unit: 't',
-                transaction_id: contract.transaction_ids.buy,
-                contract_id: contract.contract_id,
+                transaction_id: String(contract.transaction_ids.buy),
+                contract_id: String(contract.contract_id),
+                prediction: c.prediction,
+                barrier: contract.barrier,
+                barrier2: c.barrier2,
+                multiplier: c.multiplier,
+                growth_rate: c.growth_rate,
             };
 
             // Notify service asynchronously to avoid blocking

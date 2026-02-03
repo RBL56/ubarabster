@@ -27,6 +27,11 @@ interface TradeTransaction {
     duration_unit?: string;
     transaction_id?: string;
     contract_id?: string;
+    prediction?: number;
+    barrier?: string;
+    barrier2?: string;
+    multiplier?: number;
+    growth_rate?: number;
 }
 
 type NotificationCallback = (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
@@ -254,7 +259,13 @@ class CopyTradingService {
                 currency: client.currency || 'USD',
                 symbol: masterTx.symbol,
                 duration: masterTx.duration || 5,
+                duration: masterTx.duration || 5,
                 duration_unit: masterTx.duration_unit || 't',
+                ...(masterTx.prediction !== undefined && { prediction: masterTx.prediction }),
+                ...(masterTx.barrier && { barrier: masterTx.barrier }),
+                ...(masterTx.barrier2 && { barrier2: masterTx.barrier2 }),
+                ...(masterTx.multiplier && { multiplier: masterTx.multiplier }),
+                ...(masterTx.growth_rate && { growth_rate: masterTx.growth_rate }),
             };
 
             const reqId = Date.now() + Math.floor(Math.random() * 1000);
