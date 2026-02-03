@@ -383,21 +383,6 @@ const AppWrapper = observer(() => {
                             >
                                 <TradingPlans />
                             </div>
-                            <div
-                                label={
-                                    <>
-                                        <LabelPairedObjectsColumnCaptionRegularIcon
-                                            height='24px'
-                                            width='24px'
-                                            fill='#f3ad0a'
-                                        />
-                                        <Localize i18n_default_text='Trading Plans' />
-                                    </>
-                                }
-                                id='id-trading-plans'
-                            >
-                                <TradingPlans />
-                            </div>
                         </Tabs>
                         {!isDesktop && right_tab_shadow && <span className='tabs-shadow tabs-shadow--right' />}{' '}
                     </div>
