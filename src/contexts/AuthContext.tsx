@@ -11,7 +11,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = observer(({ children }) => {
-    const { client } = useStore();
+    const store = useStore();
+
+    if (!store) {
+        return <LoadingScreen message={localize('Initializing application...')} />;
+    }
+
+    const { client } = store;
     const isInitialized = client.is_client_initialized;
     const isLoggedIn = client.is_logged_in;
 
