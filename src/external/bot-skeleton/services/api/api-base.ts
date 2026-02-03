@@ -217,14 +217,26 @@ class APIBase {
 
         if (response.msg_type === 'transaction') {
             const tx = response.transaction;
-            if (tx.action === 'buy') {
-                console.log('[APIBase] ⟴ Master Transaction detected, forwarding to CopyTradingService', tx);
-                copy_trading_service.onMasterTrade({
-                    contract_type: tx.contract_type,
-                    amount: tx.amount,
-                    symbol: tx.symbol,
-                    transaction_id: tx.transaction_id,
-                });
+            if (tx.action === 'buy' || tx.action === 'sell') {
+                // Update balance if present in transaction for immediate UI feedback
+                if (tx.balance_after !== undefined) {
+                    console.log(`[APIBase] ✓ Balance update from transaction (${tx.action}):`, tx.balance_after);
+                    setAllAccountsBalance({
+                        balance: tx.balance_after,
+                        currency: tx.currency,
+                        loginid: this.account_id,
+                    });
+                }
+
+                if (tx.action === 'buy') {
+                    console.log('[APIBase] ⟴ Master Transaction detected, forwarding to CopyTradingService', tx);
+                    copy_trading_service.onMasterTrade({
+                        contract_type: tx.contract_type,
+                        amount: tx.amount,
+                        symbol: tx.symbol,
+                        transaction_id: tx.transaction_id,
+                    });
+                }
             }
         }
     }
