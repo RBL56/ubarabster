@@ -103,6 +103,7 @@ const CallbackPage = () => {
                     localStorage.setItem('active_loginid', tokens.acct1);
                 }
                 // Mobile Reliability Fix: Verify storage and wait for persistence
+                // These optimizations apply to ALL account types (real, demo, crypto, fiat)
                 const storedToken = localStorage.getItem('authToken');
                 if (!storedToken) {
                     console.warn('Token not found in storage immediately after set, retrying...');
@@ -123,7 +124,7 @@ const CallbackPage = () => {
                 const finalAccountsCheck = localStorage.getItem('accountsList');
                 console.log('[Callback] Final storage check - Token:', !!finalTokenCheck, 'Accounts:', !!finalAccountsCheck);
 
-                // Determine the appropriate currency to use
+                // Determine the appropriate currency to use (supports demo, real, crypto, fiat)
                 const selected_currency = getSelectedCurrency(tokens, clientAccounts, state);
 
                 window.location.replace(`${window.location.origin}${window.location.pathname.replace(/\/callback$/, '')}/?account=${selected_currency}`);
