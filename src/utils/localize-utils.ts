@@ -1,9 +1,7 @@
-let tmp_localize: any;
+import { localize } from '@deriv-com/translations';
 
-export const setLocalize = (localize: any) => {
-    tmp_localize = localize;
+export const setLocalize = (_localize: any) => {
+    // This is now a no-op as we import localize directly
 };
 
-export const localize = (tString: string, values?: Record<string, unknown>): string => {
-    return tmp_localize(tString, values);
-};
+export { localize };

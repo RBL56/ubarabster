@@ -4,6 +4,7 @@ import { setColors } from './hooks/colours.js';
 import goog from './goog.js';
 
 window.goog = goog;
+window.localize = localize;
 
 const modifyBlocklyWorkSpaceContextMenu = () => {
     const exclude_item = ['blockInline'];
