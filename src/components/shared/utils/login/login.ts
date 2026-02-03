@@ -30,8 +30,7 @@ export const loginUrl = ({ language }: TLoginUrl) => {
     const signup_device = signup_device_cookie.get('signup_device');
     const date_first_contact_cookie = new (CookieStorage as any)('date_first_contact');
     const date_first_contact = date_first_contact_cookie.get('date_first_contact');
-    const marketing_queries = `${signup_device ? `&signup_device=${signup_device}` : ''}${date_first_contact ? `&date_first_contact=${date_first_contact}` : ''
-        }`;
+    const marketing_queries = `${signup_device ? `&signup_device=${signup_device}` : ''}${date_first_contact ? `&date_first_contact=${date_first_contact}` : ''}`;
     const getOAuthUrl = () => {
         // Default to deriv.com for OAuth
         let oauth_domain = 'deriv.com';
