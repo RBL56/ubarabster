@@ -88,18 +88,18 @@ const useStoreWalletAccountsList = () => {
                     const landing_company_name = account.landing_company_name?.replace('maltainvest', 'malta');
                     const is_malta_wallet = landing_company_name === 'malta';
 
-                    let dtrade_loginid = loginid;
-                    let dtrade_balance = (account as any).balance;
-                    let is_dtrader_account_disabled = is_disabled;
+                    const dtrade_loginid = is_wallet
+                        ? (account?.linked_to?.find(acc => acc?.platform === 'dtrade')?.loginid || loginid)
+                        : loginid;
 
-                    if (is_wallet) {
-                        dtrade_loginid = account?.linked_to?.find(acc => acc?.platform === 'dtrade')?.loginid || loginid;
-                        dtrade_balance = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance ??
+                    const dtrade_balance = (dtrade_loginid === client.loginid)
+                        ? client.balance
+                        : (all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance ??
                             (accounts?.[dtrade_loginid ?? ''] as any)?.balance ??
                             (accounts?.[dtrade_loginid ?? ''] as any)?.dtrade_balance ??
-                            (account as any).balance;
-                        is_dtrader_account_disabled = Boolean(accounts?.[dtrade_loginid ?? '']?.is_disabled);
-                    }
+                            (account as any).balance);
+
+                    const is_dtrader_account_disabled = Boolean(accounts?.[dtrade_loginid ?? '']?.is_disabled) || is_disabled;
 
                     const wallet_currency_type = is_virtual ? 'Demo' : currency || '';
                     const icons = currency_to_icon_mapper[wallet_currency_type];
@@ -134,7 +134,7 @@ const useStoreWalletAccountsList = () => {
                     } as const;
                 }) || []
         );
-    }, [store, accounts, all_accounts_balance?.accounts]);
+    }, [store, accounts, all_accounts_balance?.accounts, client.balance]);
 
     // Sort wallet accounts alphabetically by fiat, crypto, then virtual.
     const sorted_wallets = useMemo(() => {
