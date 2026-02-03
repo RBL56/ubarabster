@@ -23,13 +23,26 @@ const useActiveAccount = ({ allBalanceData }: { allBalanceData: Balance | null }
     const modifiedAccount = useMemo(() => {
         const displayCurrency = activeAccount?.currency || 'USD';
 
+        // Improved balance retrieval with multiple fallback strategies
+        let balanceValue = 0;
+        if (currentBalanceData?.balance !== undefined) {
+            balanceValue = currentBalanceData.balance;
+        } else if (activeAccount?.balance !== undefined) {
+            // Fallback to account balance if available
+            balanceValue = typeof activeAccount.balance === 'number'
+                ? activeAccount.balance
+                : parseFloat(activeAccount.balance.toString()) || 0;
+        }
+
+        const formattedBalance = addComma(
+            balanceValue.toFixed(getDecimalPlaces(currentBalanceData?.currency || displayCurrency))
+        );
+
         return activeAccount
             ? {
                 ...activeAccount,
                 currency: displayCurrency,
-                balance:
-                    addComma(currentBalanceData?.balance?.toFixed(getDecimalPlaces(currentBalanceData.currency))) ??
-                    '0',
+                balance: formattedBalance,
                 currencyLabel: activeAccount?.is_virtual ? localize('Demo') : displayCurrency,
                 icon: (
                     <CurrencyIcon

@@ -403,8 +403,14 @@ class APIBase {
             // Verify complete trading readiness
             await this.verifyTradingReadiness();
 
-            // Explicitly request balance update
-            console.log('[APIBase] Requesting balance update...');
+            // Explicitly request balance update to ensure immediate display
+            console.log('[APIBase] Requesting explicit balance update...');
+            try {
+                await this.api.send({ balance: 1, subscribe: 1, account: 'all' });
+                console.log('[APIBase] ✓ Balance request sent successfully');
+            } catch (error) {
+                console.error('[APIBase] Failed to request balance:', error);
+            }
         } catch (e: any) {
             console.error('[APIBase] Authorization failed with exception:', e);
             // Only clear and fail if it's NOT a timeout

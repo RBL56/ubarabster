@@ -92,12 +92,31 @@ const useStoreWalletAccountsList = () => {
                         ? (account?.linked_to?.find(acc => acc?.platform === 'dtrade')?.loginid || loginid)
                         : loginid;
 
-                    const dtrade_balance = (dtrade_loginid === client.loginid)
-                        ? client.balance
-                        : (all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance ??
-                            (accounts?.[dtrade_loginid ?? ''] as any)?.balance ??
-                            (accounts?.[dtrade_loginid ?? ''] as any)?.dtrade_balance ??
-                            (account as any).balance);
+                    // Improved balance retrieval with comprehensive fallback chain
+                    let dtrade_balance = 0;
+
+                    if (dtrade_loginid === client.loginid) {
+                        // Active account - use client.balance
+                        dtrade_balance = parseFloat(client.balance) || 0;
+                    } else {
+                        // Non-active account - try multiple sources
+                        const balanceFromAllAccounts = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance;
+                        const balanceFromAccount = (accounts?.[dtrade_loginid ?? ''] as any)?.balance;
+                        const dtradeBalanceFromAccount = (accounts?.[dtrade_loginid ?? ''] as any)?.dtrade_balance;
+                        const balanceFromWallet = (account as any).balance;
+
+                        dtrade_balance = balanceFromAllAccounts ??
+                            balanceFromAccount ??
+                            dtradeBalanceFromAccount ??
+                            balanceFromWallet ??
+                            0;
+
+                        // Ensure it's a number
+                        if (typeof dtrade_balance !== 'number') {
+                            const strValue = String(dtrade_balance);
+                            dtrade_balance = parseFloat(strValue) || 0;
+                        }
+                    }
 
                     const is_dtrader_account_disabled = Boolean(accounts?.[dtrade_loginid ?? '']?.is_disabled) || is_disabled;
 
