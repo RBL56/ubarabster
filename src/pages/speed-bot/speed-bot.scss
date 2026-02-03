@@ -764,6 +764,22 @@
                 background: #1a273b;
             }
 
+            &.bulk-part {
+                border-left: 3px solid #a855f7;
+                background: rgba(168, 85, 247, 0.03);
+                margin-left: 4px;
+                padding-left: 8px;
+            }
+
+            .bulk-indicator {
+                font-size: 8px;
+                padding: 1px 3px;
+                border-radius: 2px;
+                background: #a855f7;
+                color: #fff;
+                font-weight: 800;
+            }
+
             .col-type {
                 display: flex;
                 align-items: center;

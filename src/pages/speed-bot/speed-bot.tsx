@@ -1970,93 +1970,17 @@ const SpeedBot = observer(() => {
                                             const processedBatches = new Set();
 
                                             transactions.forEach(tx => {
-                                                if (tx.batch_id && bulkEnabled) {
-                                                    if (!processedBatches.has(tx.batch_id)) {
-                                                        processedBatches.add(tx.batch_id);
-                                                        const batchTxs = transactions.filter(t => t.batch_id === tx.batch_id);
-
-                                                        const won = batchTxs.filter(t => t.status === 'won').length;
-                                                        const lost = batchTxs.filter(t => t.status === 'lost').length;
-                                                        const running = batchTxs.filter(t => t.status === 'running').length;
-                                                        const total = tx.batch_size || batchTxs.length;
-
-                                                        const totalStake = batchTxs.reduce((acc, t) => acc + t.stake, 0);
-                                                        const totalProfit = batchTxs.reduce((acc, t) => {
-                                                            if (t.status === 'won') return acc + (t.payout - t.stake);
-                                                            if (t.status === 'lost') return acc - t.stake;
-                                                            return acc;
-                                                        }, 0);
-
-                                                        allDisplayItems.push({
-                                                            isBulk: true,
-                                                            batchId: tx.batch_id,
-                                                            contracts: batchTxs,
-                                                            stats: { won, lost, running, total, totalStake, totalProfit }
-                                                        });
-                                                    }
-                                                } else {
-                                                    allDisplayItems.push(tx);
-                                                }
+                                                allDisplayItems.push(tx);
                                             });
 
                                             return allDisplayItems.map((item, idx) => {
-                                                if ('isBulk' in item) {
-                                                    const { stats, contracts } = item;
-                                                    const firstTx = contracts[0];
-                                                    const status: Transaction['status'] = stats.running > 0 ? 'running' :
-                                                        stats.won === stats.total ? 'won' :
-                                                            stats.lost === stats.total ? 'lost' : 'pending';
-
-                                                    return (
-                                                        <div key={`bulk-${item.batchId}`} className='tx-row bulk-row' style={{ borderLeft: '4px solid #3b82f6', background: 'rgba(59, 130, 246, 0.05)' }}>
-                                                            <div className='col-type'>
-                                                                <div className={clsx('dot-indicator', status)}></div>
-                                                                <span style={{ fontWeight: 'bold', color: '#3b82f6' }}>BULK</span> {firstTx.contract_type.replace('DIGIT', '')}
-                                                            </div>
-                                                            <div className='col-spots'>
-                                                                <div style={{ fontSize: '11px', color: '#9fb3c8' }}>
-                                                                    <span style={{ color: '#22c55e' }}>W:{stats.won}</span> / <span style={{ color: '#ff444f' }}>L:{stats.lost}</span> / <span style={{ color: '#aaa' }}>T:{stats.total}</span>
-                                                                </div>
-                                                                <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap' }}>
-                                                                    {contracts.map(c => (
-                                                                        <span
-                                                                            key={c.id}
-                                                                            className={clsx('exit-digit-badge', c.status)}
-                                                                            style={{
-                                                                                fontSize: '10px',
-                                                                                padding: '1px 5px',
-                                                                                borderRadius: '4px',
-                                                                                background: c.status === 'won' ? 'rgba(34, 197, 94, 0.15)' : c.status === 'lost' ? 'rgba(255, 68, 79, 0.15)' : 'rgba(159, 179, 200, 0.05)',
-                                                                                color: c.status === 'won' ? '#22c55e' : c.status === 'lost' ? '#ff444f' : '#9fb3c8',
-                                                                                border: `1px solid ${c.status === 'won' ? 'rgba(34, 197, 94, 0.4)' : c.status === 'lost' ? 'rgba(255, 68, 79, 0.4)' : 'rgba(159, 179, 200, 0.2)'}`,
-                                                                                minWidth: '16px',
-                                                                                textAlign: 'center',
-                                                                                fontWeight: '600'
-                                                                            }}
-                                                                        >
-                                                                            {c.exit_digit !== undefined ? c.exit_digit : '—'}
-                                                                        </span>
-                                                                    ))}
-                                                                </div>
-                                                                <div style={{ fontSize: '10px', opacity: 0.7, marginTop: '4px' }}>
-                                                                    {stats.running > 0 ? `${stats.running} running...` : 'Completed'}
-                                                                </div>
-                                                            </div>
-                                                            <div className='col-pl'>
-                                                                <div className='stake'>{stats.totalStake.toFixed(2)} USD</div>
-                                                                <div className={clsx('profit', stats.totalProfit >= 0 ? 'won' : 'lost')}>
-                                                                    {stats.totalProfit >= 0 ? `+${stats.totalProfit.toFixed(2)}` : `${stats.totalProfit.toFixed(2)}`} USD
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                }
-
-                                                const tx = item;
+                                                const tx = item as Transaction;
+                                                const isBulkPart = !!tx.batch_id;
                                                 return (
-                                                    <div key={tx.id} className='tx-row'>
+                                                    <div key={tx.id} className={clsx('tx-row', isBulkPart && 'bulk-part')}>
                                                         <div className='col-type'>
                                                             <div className={clsx('dot-indicator', tx.status)}></div>
+                                                            {isBulkPart && <span className='bulk-indicator'>B</span>}
                                                             {tx.contract_type.replace('DIGIT', '')}
                                                         </div>
                                                         <div className='col-spots'>
