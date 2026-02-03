@@ -10,7 +10,7 @@ import { StoreProvider } from '@/hooks/useStore';
 import CallbackPage from '@/pages/callback';
 import Endpoint from '@/pages/endpoint';
 import { TAuthData } from '@/types/api-types';
-import { initializeI18n, localize, TranslationProvider } from '@deriv-com/translations';
+import { localize, TranslationProvider } from '@deriv-com/translations';
 import CoreStoreProvider from './CoreStoreProvider';
 import './app-root.scss';
 
@@ -18,6 +18,9 @@ const Layout = lazy(() => import('../components/layout'));
 const AppRoot = lazy(() => import('./app-root'));
 import LoadingScreen from '@/components/loading-screen/loading-screen';
 
+// i18n is now initialized in main.tsx before this component loads
+// We just need to get the existing instance for the TranslationProvider
+import { initializeI18n } from '@deriv-com/translations';
 const { TRANSLATIONS_CDN_URL, R2_PROJECT_NAME, CROWDIN_BRANCH_NAME } = process.env;
 const i18nInstance = initializeI18n({
     cdnUrl: `${TRANSLATIONS_CDN_URL}/${R2_PROJECT_NAME}/${CROWDIN_BRANCH_NAME}`,
