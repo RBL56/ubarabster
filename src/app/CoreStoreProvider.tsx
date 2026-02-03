@@ -190,7 +190,7 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
     useEffect(() => {
         if (!isAuthorizing && isAuthorized && !accountInitialization.current && client) {
             accountInitialization.current = true;
-            Promise.all([
+            const fetchData = Promise.all([
                 api_base.api.getSettings().then((settingRes: TSocketResponseData<'get_settings'>) => {
                     client?.setAccountSettings(settingRes.get_settings);
                     const client_information: TClientInformation = {
@@ -220,7 +220,12 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
                 api_base.api.getAccountStatus().then((res: TSocketResponseData<'get_account_status'>) => {
                     client?.setAccountStatus(res.get_account_status);
                 })
-            ]).finally(() => {
+            ]);
+
+            // Timeout fallback to ensure the app loads even if requests hang
+            const timeout = new Promise(resolve => setTimeout(resolve, 3000));
+
+            Promise.race([fetchData, timeout]).finally(() => {
                 client?.setClientInitialized(true);
             });
         }
