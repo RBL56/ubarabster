@@ -220,10 +220,11 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
                 api_base.api.getAccountStatus().then((res: TSocketResponseData<'get_account_status'>) => {
                     client?.setAccountStatus(res.get_account_status);
                 })
-            ]);
+            ])
 
             // Timeout fallback to ensure the app loads even if requests hang
-            const timeout = new Promise(resolve => setTimeout(resolve, 3000));
+            // Increased to 5000ms for mobile devices with slower connections
+            const timeout = new Promise(resolve => setTimeout(resolve, 5000));
 
             Promise.race([fetchData, timeout]).finally(() => {
                 client?.setClientInitialized(true);
@@ -232,13 +233,14 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
     }, [isAuthorizing, isAuthorized, client]);
 
     // Global safety timeout: Force initialization if it takes too long (e.g., auth stuck, CORS issues)
+    // Increased to 8000ms for mobile devices
     useEffect(() => {
         const safetyTimeout = setTimeout(() => {
             if (client && !client.is_client_initialized) {
-                console.warn('Initialization timed out, forcing load...');
+                console.warn('[CoreStoreProvider] Initialization timed out, forcing load...');
                 client.setClientInitialized(true);
             }
-        }, 5000);
+        }, 8000);
 
         return () => clearTimeout(safetyTimeout);
     }, [client]);

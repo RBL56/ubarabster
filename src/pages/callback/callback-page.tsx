@@ -109,8 +109,19 @@ const CallbackPage = () => {
                     if (tokens.token1) localStorage.setItem('authToken', tokens.token1);
                 }
 
-                // Small delay to ensure localStorage is flushed to disk on mobile devices
-                await new Promise(resolve => setTimeout(resolve, 200));
+                // Set sessionStorage flag to signal OAuth redirect completion
+                // This allows immediate detection in AuthContext without waiting for polling
+                sessionStorage.setItem('oauth_redirect_complete', 'true');
+                console.log('[Callback] OAuth redirect complete flag set');
+
+                // Increased delay to 500ms for mobile localStorage persistence
+                // Mobile browsers need more time to flush localStorage to disk
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Final verification that tokens are persisted
+                const finalTokenCheck = localStorage.getItem('authToken');
+                const finalAccountsCheck = localStorage.getItem('accountsList');
+                console.log('[Callback] Final storage check - Token:', !!finalTokenCheck, 'Accounts:', !!finalAccountsCheck);
 
                 // Determine the appropriate currency to use
                 const selected_currency = getSelectedCurrency(tokens, clientAccounts, state);
