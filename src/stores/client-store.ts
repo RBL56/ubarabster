@@ -1,4 +1,4 @@
-import { action, computed, makeObservable, observable } from 'mobx';
+import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { ContentFlag, getDecimalPlaces, isEmptyObject } from '@/components/shared';
 import { isEuCountry, isMultipliersOnly, isOptionsBlocked } from '@/components/shared/common/utility';
 import { removeCookies } from '@/components/shared/utils/storage/storage';
@@ -643,8 +643,31 @@ export default class ClientStore {
 
         console.log(`[ClientStore] Switching to account: ${loginId}`);
 
+        // 1. Update localStorage first
         localStorage.setItem('authToken', token);
         localStorage.setItem('active_loginid', loginId);
+
+        // 2. Update store state immediately and sync observables
+        runInAction(() => {
+            this.loginid = loginId;
+            this.is_logged_in = true;
+            setAuthData(null); // Clear previous auth data to trigger re-authorization flow in observers
+        });
+
+        // 3. Re-initialize API
+        if (api_base) {
+            await api_base.init(true);
+        }
+
+        // 4. Update URL search parameters
+        const search_params = new URLSearchParams(window.location.search);
+        const account = this.accounts[loginId];
+        if (account) {
+            const account_param = account.is_virtual ? 'demo' : (account.currency || 'USD');
+            search_params.set('account', account_param);
+            sessionStorage.setItem('query_param_currency', account_param);
+            window.history.pushState({}, '', `${window.location.pathname}?${search_params.toString()}`);
+        }
 
         const account_type =
             loginId
@@ -655,19 +678,7 @@ export default class ClientStore {
             account_type,
         });
 
-        // Re-initialize API with the new token
-        if (api_base) {
-            await api_base.init(true);
-        }
-
-        // Update URL search parameters
-        const search_params = new URLSearchParams(window.location.search);
-        const account = this.accounts[loginId];
-        if (account) {
-            const account_param = account.is_virtual ? 'demo' : (account.currency || 'USD');
-            search_params.set('account', account_param);
-            sessionStorage.setItem('query_param_currency', account_param);
-            window.history.pushState({}, '', `${window.location.pathname}?${search_params.toString()}`);
-        }
+        // 5. Force a reload to ensure clean state across the entire app and bot skeleton
+        window.location.reload();
     };
 }
