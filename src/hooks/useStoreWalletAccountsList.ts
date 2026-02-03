@@ -74,24 +74,41 @@ const useStoreWalletAccountsList = () => {
 
         return (
             Object.keys(accounts)
-                ?.filter(id => accounts?.[id].account_category === 'wallet')
+                ?.filter(id => {
+                    const acc = accounts[id];
+                    if (acc.account_category === 'wallet') return true;
+                    if (acc.account_category === 'trading') {
+                        // Include trading accounts that are NOT linked to a wallet in this list
+                        const hasLinkedWallet = acc.linked_to?.some(link => link.platform === 'wallet');
+                        return !hasLinkedWallet;
+                    }
+                    return false;
+                })
                 ?.map(id => {
-                    const wallet = accounts?.[id];
+                    const account = accounts?.[id];
 
                     const loginid = id;
-                    const currency = wallet.currency;
-                    const is_disabled = Boolean(wallet.is_disabled);
-                    const is_virtual = Boolean(wallet.is_virtual);
+                    const currency = account.currency;
+                    const is_disabled = Boolean(account.is_disabled);
+                    const is_virtual = Boolean(account.is_virtual);
+                    const is_wallet = account.account_category === 'wallet';
 
                     const icon_type = is_virtual && 'demo';
-                    const landing_company_name = wallet.landing_company_name?.replace('maltainvest', 'malta');
+                    const landing_company_name = account.landing_company_name?.replace('maltainvest', 'malta');
                     const is_malta_wallet = landing_company_name === 'malta';
-                    const dtrade_loginid = wallet?.linked_to?.find(account => account?.platform === 'dtrade')?.loginid;
-                    const dtrade_balance = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance ??
-                        accounts?.[dtrade_loginid ?? '']?.balance ??
-                        (accounts?.[dtrade_loginid ?? ''] as any)?.dtrade_balance ??
-                        wallet.balance;
-                    const is_dtrader_account_disabled = Boolean(accounts?.[dtrade_loginid ?? '']?.is_disabled);
+
+                    let dtrade_loginid = loginid;
+                    let dtrade_balance = (account as any).balance;
+                    let is_dtrader_account_disabled = is_disabled;
+
+                    if (is_wallet) {
+                        dtrade_loginid = account?.linked_to?.find(acc => acc?.platform === 'dtrade')?.loginid || loginid;
+                        dtrade_balance = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance ??
+                            (accounts?.[dtrade_loginid ?? ''] as any)?.balance ??
+                            (accounts?.[dtrade_loginid ?? ''] as any)?.dtrade_balance ??
+                            (account as any).balance;
+                        is_dtrader_account_disabled = Boolean(accounts?.[dtrade_loginid ?? '']?.is_disabled);
+                    }
 
                     const wallet_currency_type = is_virtual ? 'Demo' : currency || '';
                     const icons = currency_to_icon_mapper[wallet_currency_type];
@@ -110,7 +127,7 @@ const useStoreWalletAccountsList = () => {
                     };
 
                     return {
-                        ...wallet,
+                        ...account,
                         dtrade_loginid,
                         dtrade_balance,
                         icons,
@@ -122,6 +139,7 @@ const useStoreWalletAccountsList = () => {
                         loginid,
                         gradients,
                         is_dtrader_account_disabled,
+                        is_wallet,
                     } as const;
                 }) || []
         );

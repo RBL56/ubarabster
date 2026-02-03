@@ -29,6 +29,7 @@ export const AccountSwitcherWalletItem = observer(
             is_virtual,
             landing_company_name,
             icon_type,
+            is_wallet,
         } = account;
 
         const {
@@ -40,7 +41,7 @@ export const AccountSwitcherWalletItem = observer(
         const app_icon = is_dark_mode_on ? 'IcWalletOptionsDark' : 'IcWalletOptionsLight';
         const is_dtrade_active = dtrade_loginid === active_loginid;
 
-        const switchAccount = async (loginId: number) => {
+        const switchAccount = async (loginId: string | number) => {
             const account_list = JSON.parse(localStorage.getItem('accountsList') ?? '{}');
             const token = account_list[loginId];
 
@@ -80,6 +81,9 @@ export const AccountSwitcherWalletItem = observer(
             const account_param = is_virtual ? 'demo' : selected_account.currency;
             search_params.set('account', account_param);
             window.history.pushState({}, '', `${window.location.pathname}?${search_params.toString()}`);
+
+            // Force reload as in ClientStore.switchAccount
+            window.location.reload();
         };
 
         return (
@@ -91,30 +95,45 @@ export const AccountSwitcherWalletItem = observer(
                 onClick={() => switchAccount(dtrade_loginid)}
                 role='button'
             >
-                <div>
-                    <AppLinkedWithWalletIcon
-                        app_icon={app_icon}
-                        gradient_class={gradients?.card[theme] ?? ''}
-                        type={icon_type}
-                        wallet_icon={icons?.[theme] ?? ''}
-                        hide_watermark
-                    />
+                <div className='acc-switcher-wallet-item__icon-container'>
+                    {is_wallet ? (
+                        <AppLinkedWithWalletIcon
+                            app_icon={app_icon}
+                            gradient_class={gradients?.card[theme] ?? ''}
+                            type={icon_type}
+                            wallet_icon={icons?.[theme] ?? ''}
+                            hide_watermark
+                        />
+                    ) : (
+                        <div className='acc-switcher-wallet-item__trading-icon'>
+                            <AppLinkedWithWalletIcon
+                                app_icon={app_icon}
+                                gradient_class='trading-account-card'
+                                type={icon_type}
+                                wallet_icon={icons?.[theme] ?? ''}
+                                hide_watermark
+                            />
+                        </div>
+                    )}
                 </div>
                 <div className='acc-switcher-wallet-item__content'>
-                    <Text size='xxxs'>
+                    <Text size='xxxs' color='less-prominent'>
                         {is_eu ? (
                             <Localize i18n_default_text='Multipliers' />
                         ) : (
                             <Localize i18n_default_text='Options' />
                         )}
                     </Text>
-                    <Text size='xxxs'>
+                    <Text size='xxxs' weight='bold'>
                         {is_virtual ? (
                             <Localize i18n_default_text='Demo Wallet' />
                         ) : (
                             <Localize
-                                i18n_default_text='{{currency}} Wallet'
-                                values={{ currency: getCurrencyDisplayCode(currency) }}
+                                i18n_default_text='{{currency}} {{account_type}}'
+                                values={{
+                                    currency: getCurrencyDisplayCode(currency),
+                                    account_type: is_wallet ? localize('Wallet') : localize('Account'),
+                                }}
                             />
                         )}
                     </Text>
