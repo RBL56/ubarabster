@@ -229,42 +229,8 @@ const AppWrapper = observer(() => {
         [active_tab]
     );
 
-    const { isOAuth2Enabled } = useOauth2();
     const handleLoginGeneration = async () => {
-        if (!isOAuth2Enabled) {
-            window.location.replace(generateOAuthURL());
-        } else {
-            const getQueryParams = new URLSearchParams(window.location.search);
-            const currency = getQueryParams.get('account') ?? '';
-            const query_param_currency = currency || sessionStorage.getItem('query_param_currency') || 'USD';
-
-            try {
-                // First, explicitly wait for TMB status to be determined
-                const tmbEnabled = await isTmbEnabled();
-                // Now use the result of the explicit check
-                if (tmbEnabled) {
-                    await onRenderTMBCheck();
-                } else {
-                    try {
-                        await requestOidcAuthentication({
-                            redirectCallbackUri: `${window.location.origin}/callback`,
-                            ...(query_param_currency
-                                ? {
-                                    state: {
-                                        account: query_param_currency,
-                                    },
-                                }
-                                : {}),
-                        });
-                    } catch (err) {
-                        handleOidcAuthFailure(err);
-                    }
-                }
-            } catch (error) {
-                // eslint-disable-next-line no-console
-                console.error(error);
-            }
-        }
+        window.location.replace(generateOAuthURL());
     };
     return (
         <React.Fragment>
