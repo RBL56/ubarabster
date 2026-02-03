@@ -31,6 +31,7 @@ export default class ClientStore {
     is_landing_company_loaded: boolean | undefined;
     all_accounts_balance: Balance | null = null;
     is_logging_out = false;
+    is_client_initialized = false;
 
     // TODO: fix with self exclusion
     updateSelfExclusion = () => { };
@@ -65,6 +66,7 @@ export default class ClientStore {
         if (active_loginid && auth_token) {
             this.loginid = active_loginid;
             this.is_logged_in = true;
+            this.is_client_initialized = false;
 
             // Try to hydrate from the dedicated all_accounts_balance key first
             const stored_all_balances = localStorage.getItem('client.all_accounts_balance');
@@ -208,6 +210,8 @@ export default class ClientStore {
             setUpgradeableLandingCompanies: action,
             updateTncStatus: action,
             switchAccount: action,
+            is_client_initialized: observable,
+            setClientInitialized: action,
             is_trading_experience_incomplete: computed,
             is_cr_account: computed,
             account_open_date: computed,
@@ -680,5 +684,9 @@ export default class ClientStore {
 
         // 5. Force a reload to ensure clean state across the entire app and bot skeleton
         window.location.reload();
+    };
+
+    setClientInitialized = (is_initialized: boolean) => {
+        this.is_client_initialized = is_initialized;
     };
 }

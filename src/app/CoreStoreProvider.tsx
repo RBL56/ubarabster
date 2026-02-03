@@ -190,35 +190,38 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
     useEffect(() => {
         if (!isAuthorizing && isAuthorized && !accountInitialization.current && client) {
             accountInitialization.current = true;
-            api_base.api.getSettings().then((settingRes: TSocketResponseData<'get_settings'>) => {
-                client?.setAccountSettings(settingRes.get_settings);
-                const client_information: TClientInformation = {
-                    loginid: activeAccount?.loginid,
-                    email: settingRes.get_settings?.email,
-                    currency: client?.currency,
-                    residence: settingRes.get_settings?.residence,
-                    first_name: settingRes.get_settings?.first_name,
-                    last_name: settingRes.get_settings?.last_name,
-                    preferred_language: settingRes.get_settings?.preferred_language,
-                    user_id: ((api_base.account_info as any)?.user_id as number) || activeLoginid,
-                    landing_company_shortcode: activeAccount?.landing_company_name,
-                };
+            Promise.all([
+                api_base.api.getSettings().then((settingRes: TSocketResponseData<'get_settings'>) => {
+                    client?.setAccountSettings(settingRes.get_settings);
+                    const client_information: TClientInformation = {
+                        loginid: activeAccount?.loginid,
+                        email: settingRes.get_settings?.email,
+                        currency: client?.currency,
+                        residence: settingRes.get_settings?.residence,
+                        first_name: settingRes.get_settings?.first_name,
+                        last_name: settingRes.get_settings?.last_name,
+                        preferred_language: settingRes.get_settings?.preferred_language,
+                        user_id: ((api_base.account_info as any)?.user_id as number) || activeLoginid,
+                        landing_company_shortcode: activeAccount?.landing_company_name,
+                    };
 
-                Cookies.set('client_information', JSON.stringify(client_information), {
-                    domain: currentDomain,
-                });
-
-                api_base.api
-                    .landingCompany({
-                        landing_company: settingRes.get_settings?.country_code,
-                    })
-                    .then((res: TSocketResponseData<'landing_company'>) => {
-                        client?.setLandingCompany(res.landing_company as unknown as TLandingCompany);
+                    Cookies.set('client_information', JSON.stringify(client_information), {
+                        domain: currentDomain,
                     });
-            });
 
-            api_base.api.getAccountStatus().then((res: TSocketResponseData<'get_account_status'>) => {
-                client?.setAccountStatus(res.get_account_status);
+                    return api_base.api
+                        .landingCompany({
+                            landing_company: settingRes.get_settings?.country_code,
+                        })
+                        .then((res: TSocketResponseData<'landing_company'>) => {
+                            client?.setLandingCompany(res.landing_company as unknown as TLandingCompany);
+                        });
+                }),
+                api_base.api.getAccountStatus().then((res: TSocketResponseData<'get_account_status'>) => {
+                    client?.setAccountStatus(res.get_account_status);
+                })
+            ]).finally(() => {
+                client?.setClientInitialized(true);
             });
         }
     }, [isAuthorizing, isAuthorized, client]);
