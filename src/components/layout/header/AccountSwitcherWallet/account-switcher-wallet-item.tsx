@@ -8,7 +8,7 @@ import { api_base } from '@/external/bot-skeleton';
 import { useStore } from '@/hooks/useStore';
 import useStoreWalletAccountsList from '@/hooks/useStoreWalletAccountsList';
 import { Analytics } from '@deriv-com/analytics';
-import { Localize } from '@deriv-com/translations';
+import { Localize, localize } from '@deriv-com/translations';
 import WalletBadge from '../wallets/wallet-badge';
 import './account-switcher-wallet-item.scss';
 
