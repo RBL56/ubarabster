@@ -37,10 +37,8 @@ export default class SelfExclusionStore {
     }
 
     get should_bot_run() {
-        const { client } = this.core;
-        if (client.is_eu && !client.is_virtual && (this.api_max_losses === 0 || this.run_limit === -1)) {
-            return false;
-        }
+        // Return true to allow bot to run even on real accounts without explicit limits set.
+        // This enables multi-tab/real account execution as requested.
         return true;
     }
 
