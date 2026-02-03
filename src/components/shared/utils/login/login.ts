@@ -30,20 +30,21 @@ export const loginUrl = ({ language }: TLoginUrl) => {
     const signup_device = signup_device_cookie.get('signup_device');
     const date_first_contact_cookie = new (CookieStorage as any)('date_first_contact');
     const date_first_contact = date_first_contact_cookie.get('date_first_contact');
-    const marketing_queries = `${signup_device ? `&signup_device=${signup_device}` : ''}${
-        date_first_contact ? `&date_first_contact=${date_first_contact}` : ''
-    }`;
+    const marketing_queries = `${signup_device ? `&signup_device=${signup_device}` : ''}${date_first_contact ? `&date_first_contact=${date_first_contact}` : ''
+        }`;
     const getOAuthUrl = () => {
-        const current_domain = getCurrentProductionDomain();
-        let oauth_domain = deriv_urls.DERIV_HOST_NAME;
+        // Default to deriv.com for OAuth
+        let oauth_domain = 'deriv.com';
+        const hostname = window.location.hostname;
 
-        if (current_domain) {
-            // Extract domain suffix (e.g., 'deriv.me' from 'dbot.deriv.me')
-            const domain_suffix = current_domain.replace(/^[^.]+\./, '');
-            oauth_domain = domain_suffix;
+        // Use regional domains only if explicitly detected
+        if (hostname.includes('deriv.me')) {
+            oauth_domain = 'deriv.me';
+        } else if (hostname.includes('deriv.be')) {
+            oauth_domain = 'deriv.be';
         }
 
-        const url = `https://oauth.${oauth_domain}/oauth2/authorize?app_id=${getAppId()}&l=${language}${marketing_queries}&brand=${website_name.toLowerCase()}`;
+        const url = `https://oauth.${oauth_domain}/oauth2/authorize?app_id=${getAppId()}&l=${language}${marketing_queries}&brand=${website_name.toLowerCase()}&redirect_uri=${window.location.origin}/callback`;
         return url;
     };
 
