@@ -36,6 +36,7 @@ import Dcircle from '../dcircle';
 import FreeBots from '../free-bots';
 import SpeedBot from '../speed-bot';
 import TradingPlans from '../trading-plans';
+import Tutorials from '../tutorials';
 import TradingView from '../tradingview';
 import './main.scss';
 
@@ -383,6 +384,17 @@ const AppWrapper = observer(() => {
                                 id='id-trading-plans'
                             >
                                 <TradingPlans />
+                            </div>
+                            <div
+                                label={
+                                    <>
+                                        <LegacyGuide1pxIcon height='24px' width='24px' fill='#f3ad0a' />
+                                        <Localize i18n_default_text='Tutorials' />
+                                    </>
+                                }
+                                id='id-tutorials'
+                            >
+                                <Tutorials />
                             </div>
                         </Tabs>
                         {!isDesktop && right_tab_shadow && <span className='tabs-shadow tabs-shadow--right' />}{' '}
