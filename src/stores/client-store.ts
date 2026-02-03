@@ -536,7 +536,16 @@ export default class ClientStore {
             console.error('Failed to persist all_accounts_balance', e);
         }
 
-        // Sync local flat properties for the active account
+        // Sync local flat properties for ALL accounts in the store
+        if (newAllAccountsBalance.accounts) {
+            Object.entries(newAllAccountsBalance.accounts).forEach(([accLoginId, accData]) => {
+                if (this.accounts[accLoginId] && accData.balance !== undefined) {
+                    this.accounts[accLoginId].balance = parseFloat(accData.balance.toString());
+                }
+            });
+        }
+
+        // Sync local flat properties for the active account (ensure it is definitely updated)
         const activeAccountBalance = this.all_accounts_balance?.accounts?.[this.loginid];
         if (activeAccountBalance) {
             const newBalance = activeAccountBalance.balance.toString();
@@ -551,11 +560,6 @@ export default class ClientStore {
 
             this.setBalance(newBalance);
             this.setCurrency(newCurrency);
-
-            // Also keep the primary accounts record in sync
-            if (this.accounts[this.loginid]) {
-                this.accounts[this.loginid].balance = parseFloat(newBalance);
-            }
         }
     };
 
