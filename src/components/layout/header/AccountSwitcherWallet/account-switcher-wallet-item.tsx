@@ -34,56 +34,21 @@ export const AccountSwitcherWalletItem = observer(
 
         const {
             ui: { is_dark_mode_on },
-            client: { loginid: active_loginid, is_eu },
+            client,
         } = useStore();
+
+        const { loginid: active_loginid, is_eu } = client;
 
         const theme = is_dark_mode_on ? 'dark' : 'light';
         const app_icon = is_dark_mode_on ? 'IcWalletOptionsDark' : 'IcWalletOptionsLight';
         const is_dtrade_active = dtrade_loginid === active_loginid;
 
-        const switchAccount = async (loginId: string | number) => {
-            const account_list = JSON.parse(localStorage.getItem('accountsList') ?? '{}');
-            const token = account_list[loginId];
-
-            // If token is missing, store the currency in session storage and return
-            if (!token) {
-                // Store the currency in session storage
-                if (currency) {
-                    sessionStorage.setItem('query_param_currency', currency);
-                }
-
-                // Set clientHasCurrency to false
-                if (typeof (window as any).setClientHasCurrency === 'function') {
-                    (window as any).setClientHasCurrency(false);
-                }
-                return;
+        const handleSwitchAccount = async (loginId: string | number) => {
+            // Use the centralized switchAccount from ClientStore to ensure consistency
+            if (client) {
+                await client.switchAccount(loginId.toString());
+                closeAccountsDialog();
             }
-
-            localStorage.setItem('authToken', token);
-            localStorage.setItem('active_loginid', loginId.toString());
-            const account_type =
-                loginId
-                    .toString()
-                    .match(/[a-zA-Z]+/g)
-                    ?.join('') || '';
-            Analytics.setAttributes({
-                account_type,
-            });
-            await api_base?.init(true);
-            closeAccountsDialog();
-
-            const client_accounts = JSON.parse(localStorage.getItem('clientAccounts') ?? '{}');
-            const search_params = new URLSearchParams(window.location.search);
-            const selected_account = Object.values(client_accounts)?.find(
-                (acc: any) => acc.loginid === loginId.toString()
-            );
-            if (!selected_account) return;
-            const account_param = is_virtual ? 'demo' : selected_account.currency;
-            search_params.set('account', account_param);
-            window.history.pushState({}, '', `${window.location.pathname}?${search_params.toString()}`);
-
-            // Force reload as in ClientStore.switchAccount
-            window.location.reload();
         };
 
         return (
@@ -92,7 +57,7 @@ export const AccountSwitcherWalletItem = observer(
                     'acc-switcher-wallet-item__container--active': is_dtrade_active,
                 })}
                 data-testid='account-switcher-wallet-item'
-                onClick={() => switchAccount(dtrade_loginid)}
+                onClick={() => handleSwitchAccount(dtrade_loginid)}
                 role='button'
             >
                 <div className='acc-switcher-wallet-item__icon-container'>

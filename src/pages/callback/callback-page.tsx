@@ -102,6 +102,16 @@ const CallbackPage = () => {
                     localStorage.setItem('authToken', tokens.token1);
                     localStorage.setItem('active_loginid', tokens.acct1);
                 }
+                // Mobile Reliability Fix: Verify storage and wait for persistence
+                const storedToken = localStorage.getItem('authToken');
+                if (!storedToken) {
+                    console.warn('Token not found in storage immediately after set, retrying...');
+                    if (tokens.token1) localStorage.setItem('authToken', tokens.token1);
+                }
+
+                // Small delay to ensure localStorage is flushed to disk on mobile devices
+                await new Promise(resolve => setTimeout(resolve, 200));
+
                 // Determine the appropriate currency to use
                 const selected_currency = getSelectedCurrency(tokens, clientAccounts, state);
 
