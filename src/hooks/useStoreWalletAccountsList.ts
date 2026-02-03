@@ -95,18 +95,26 @@ const useStoreWalletAccountsList = () => {
                     // Improved balance retrieval with comprehensive fallback chain
                     let dtrade_balance = 0;
 
-                    if (dtrade_loginid === client.loginid) {
-                        // Active account - use client.balance
+                    // Source priority:
+                    // 1. all_accounts_balance (the most reliable source for non-active accounts)
+                    // 2. Client object's current balance (if it's the active account)
+                    // 3. The account object's balance property
+                    // 4. Any other balance indicators
+
+                    const balanceFromAllAccounts = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance;
+
+                    if (balanceFromAllAccounts !== undefined) {
+                        dtrade_balance = parseFloat(balanceFromAllAccounts.toString());
+                    } else if (dtrade_loginid === client.loginid) {
+                        // Active account fallback
                         dtrade_balance = parseFloat(client.balance) || 0;
                     } else {
-                        // Non-active account - try multiple sources
-                        const balanceFromAllAccounts = all_accounts_balance?.accounts?.[dtrade_loginid ?? '']?.balance;
+                        // Other fallbacks
                         const balanceFromAccount = (accounts?.[dtrade_loginid ?? ''] as any)?.balance;
                         const dtradeBalanceFromAccount = (accounts?.[dtrade_loginid ?? ''] as any)?.dtrade_balance;
                         const balanceFromWallet = (account as any).balance;
 
-                        dtrade_balance = balanceFromAllAccounts ??
-                            balanceFromAccount ??
+                        dtrade_balance = balanceFromAccount ??
                             dtradeBalanceFromAccount ??
                             balanceFromWallet ??
                             0;

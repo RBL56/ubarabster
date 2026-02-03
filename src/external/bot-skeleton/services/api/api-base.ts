@@ -404,12 +404,19 @@ class APIBase {
             await this.verifyTradingReadiness();
 
             // Explicitly request balance update to ensure immediate display
-            console.log('[APIBase] Requesting explicit balance update...');
+            console.log('[APIBase] Requesting initial balance update (all accounts)...');
             try {
-                await this.api.send({ balance: 1, subscribe: 1, account: 'all' });
-                console.log('[APIBase] ✓ Balance request sent successfully');
+                // We use a small delay to ensure the socket is ready for the next request
+                setTimeout(async () => {
+                    try {
+                        await this.api.send({ balance: 1, subscribe: 1, account: 'all' });
+                        console.log('[APIBase] ✓ Initial balance request (' + this.account_id + ') sent successfully');
+                    } catch (error) {
+                        console.error('[APIBase] Failed to request balance:', error);
+                    }
+                }, 500);
             } catch (error) {
-                console.error('[APIBase] Failed to request balance:', error);
+                console.error('[APIBase] Error in balance request setup:', error);
             }
         } catch (e: any) {
             console.error('[APIBase] Authorization failed with exception:', e);

@@ -485,8 +485,6 @@ export default class ClientStore {
     };
 
     setAllAccountsBalance = (balance_data: Balance | undefined) => {
-        console.log('ClientStore: setAllAccountsBalance', balance_data);
-
         if (!balance_data) return;
 
         // Initialize all_accounts_balance if it's null
@@ -499,9 +497,11 @@ export default class ClientStore {
 
         if (balance_data.accounts) {
             // Bulk update from 'account: all'
+            console.log('[ClientStore] Processing bulk balance update (all accounts)');
             newAllAccountsBalance = {
                 ...balance_data,
                 accounts: {
+                    ...(this.all_accounts_balance?.accounts || {}),
                     ...balance_data.accounts
                 }
             };
@@ -528,8 +528,6 @@ export default class ClientStore {
             };
         }
 
-
-
         // Assign the completely new object
         this.all_accounts_balance = newAllAccountsBalance;
 
@@ -544,7 +542,11 @@ export default class ClientStore {
         if (newAllAccountsBalance.accounts) {
             Object.entries(newAllAccountsBalance.accounts).forEach(([accLoginId, accData]) => {
                 if (this.accounts[accLoginId] && accData.balance !== undefined) {
-                    this.accounts[accLoginId].balance = parseFloat(accData.balance.toString());
+                    const parsedBalance = parseFloat(accData.balance.toString());
+                    if (this.accounts[accLoginId].balance !== parsedBalance) {
+                        console.log(`[ClientStore] Syncing account balance for ${accLoginId}: ${parsedBalance}`);
+                        this.accounts[accLoginId].balance = parsedBalance;
+                    }
                 }
             });
         }
@@ -555,15 +557,17 @@ export default class ClientStore {
             const newBalance = activeAccountBalance.balance.toString();
             const newCurrency = activeAccountBalance.currency;
 
-            console.log('ClientStore: Updating active account balance', {
-                loginid: this.loginid,
-                oldBalance: this.balance,
-                newBalance,
-                currency: newCurrency
-            });
+            if (this.balance !== newBalance || this.currency !== newCurrency) {
+                console.log('ClientStore: Updating active account balance', {
+                    loginid: this.loginid,
+                    oldBalance: this.balance,
+                    newBalance,
+                    currency: newCurrency
+                });
 
-            this.setBalance(newBalance);
-            this.setCurrency(newCurrency);
+                this.setBalance(newBalance);
+                this.setCurrency(newCurrency);
+            }
         }
     };
 
