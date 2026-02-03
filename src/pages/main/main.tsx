@@ -36,7 +36,6 @@ import Dcircle from '../dcircle';
 import FreeBots from '../free-bots';
 import SpeedBot from '../speed-bot';
 import TradingPlans from '../trading-plans';
-import Tutorials from '../tutorials';
 import TradingView from '../tradingview';
 import './main.scss';
 
@@ -83,7 +82,6 @@ const AppWrapper = observer(() => {
         'copytrading',
         'tradingview',
         'tradingplans',
-        'tutorial',
     ];
     const { isDesktop } = useDevice();
     const location = useLocation();
@@ -388,13 +386,17 @@ const AppWrapper = observer(() => {
                             <div
                                 label={
                                     <>
-                                        <LegacyGuide1pxIcon height='24px' width='24px' fill='#f3ad0a' />
-                                        <Localize i18n_default_text='Tutorials' />
+                                        <LabelPairedObjectsColumnCaptionRegularIcon
+                                            height='24px'
+                                            width='24px'
+                                            fill='#f3ad0a'
+                                        />
+                                        <Localize i18n_default_text='Trading Plans' />
                                     </>
                                 }
-                                id='id-tutorials'
+                                id='id-trading-plans'
                             >
-                                <Tutorials />
+                                <TradingPlans />
                             </div>
                         </Tabs>
                         {!isDesktop && right_tab_shadow && <span className='tabs-shadow tabs-shadow--right' />}{' '}
