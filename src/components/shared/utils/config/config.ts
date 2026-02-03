@@ -149,5 +149,5 @@ export const generateOAuthURL = () => {
     // For Vercel, Localhost, or other custom domains, we MUST use deriv.com
     // as the OAuth provider. Previous logic incorrectly tried oauth.vercel.app.
 
-    return `https://oauth.${oauth_domain}/oauth2/authorize?app_id=${app_id}&l=EN&brand=deriv`;
+    return `https://oauth.${oauth_domain}/oauth2/authorize?app_id=${app_id}&l=EN&brand=deriv&redirect_uri=${window.location.origin}/callback`;
 };
