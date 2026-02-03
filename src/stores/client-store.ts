@@ -66,7 +66,17 @@ export default class ClientStore {
             this.loginid = active_loginid;
             this.is_logged_in = true;
 
-            if (client_accounts) {
+            // Try to hydrate from the dedicated all_accounts_balance key first
+            const stored_all_balances = localStorage.getItem('client.all_accounts_balance');
+            if (stored_all_balances) {
+                try {
+                    this.all_accounts_balance = JSON.parse(stored_all_balances);
+                } catch (e) {
+                    console.error('Failed to parse client.all_accounts_balance', e);
+                }
+            }
+
+            if (client_accounts && !this.all_accounts_balance) {
                 try {
                     this.accounts = JSON.parse(client_accounts);
 
@@ -88,6 +98,13 @@ export default class ClientStore {
                     }
                 } catch (e) {
                     console.error('Failed to parse clientAccounts during hydration', e);
+                }
+            } else if (client_accounts) {
+                // Even if we loaded balances, we still need to load accounts
+                try {
+                    this.accounts = JSON.parse(client_accounts);
+                } catch (e) {
+                    console.error('Failed to parse clientAccounts for accounts', e);
                 }
             }
 
@@ -507,8 +524,17 @@ export default class ClientStore {
             };
         }
 
+
+
         // Assign the completely new object
         this.all_accounts_balance = newAllAccountsBalance;
+
+        // Persist to localStorage
+        try {
+            localStorage.setItem('client.all_accounts_balance', JSON.stringify(this.all_accounts_balance));
+        } catch (e) {
+            console.error('Failed to persist all_accounts_balance', e);
+        }
 
         // Sync local flat properties for the active account
         const activeAccountBalance = this.all_accounts_balance?.accounts?.[this.loginid];

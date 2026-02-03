@@ -96,27 +96,7 @@ const AppHeader = observer(() => {
                                 </Button>
                             </>
                         )}
-                        {is_virtual ? (
-                            real_account && (
-                                <Button
-                                    secondary
-                                    onClick={() => switchAccount?.(real_account)}
-                                    className='quick-switch-button'
-                                >
-                                    <Localize i18n_default_text='Switch to Real' />
-                                </Button>
-                            )
-                        ) : (
-                            virtual_account && (
-                                <Button
-                                    secondary
-                                    onClick={() => switchAccount?.(virtual_account)}
-                                    className='quick-switch-button'
-                                >
-                                    <Localize i18n_default_text='Switch to Demo' />
-                                </Button>
-                            )
-                        )}
+
                         <AccountSwitcher activeAccount={activeAccount} />
                     </>
                 )}

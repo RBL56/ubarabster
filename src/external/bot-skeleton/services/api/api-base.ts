@@ -325,16 +325,12 @@ class APIBase {
 
             // 1. Update balances first so store is ready
             if (authorize.balance !== undefined) {
+                // IMPORTANT: Do NOT overwrite the entire all_accounts_balance structure with a single account
+                // Just update the specific account's balance using the store method which handles the merging
                 setAllAccountsBalance({
                     balance: authorize.balance,
                     currency: authorize.currency,
                     loginid: authorize.loginid,
-                    accounts: {
-                        [authorize.loginid]: {
-                            balance: authorize.balance,
-                            currency: authorize.currency,
-                        },
-                    },
                 } as any);
             }
 
