@@ -35,7 +35,6 @@ import RunStrategy from '../dashboard/run-strategy';
 import Dcircle from '../dcircle';
 import FreeBots from '../free-bots';
 import SpeedBot from '../speed-bot';
-import StoopBot from '../stoop-bot';
 import TradingPlans from '../trading-plans';
 import TradingView from '../tradingview';
 import './main.scss';
@@ -84,7 +83,6 @@ const AppWrapper = observer(() => {
         'tradingview',
         'tradingplans',
         'tutorial',
-        'stoopbot',
     ];
     const { isDesktop } = useDevice();
     const location = useLocation();
@@ -385,21 +383,6 @@ const AppWrapper = observer(() => {
                                 id='id-trading-plans'
                             >
                                 <TradingPlans />
-                            </div>
-                            <div
-                                label={
-                                    <>
-                                        <LabelPairedChartLineCaptionRegularIcon
-                                            height='24px'
-                                            width='24px'
-                                            fill='#f3ad0a'
-                                        />
-                                        <Localize i18n_default_text='Stoop Bot' />
-                                    </>
-                                }
-                                id='id-stoop-bot'
-                            >
-                                <StoopBot />
                             </div>
                         </Tabs>
                         {!isDesktop && right_tab_shadow && <span className='tabs-shadow tabs-shadow--right' />}{' '}
