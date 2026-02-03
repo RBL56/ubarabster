@@ -87,7 +87,7 @@ const RenderAccountItems = ({
 };
 
 const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
-    const { isDesktop } = useDevice();
+    // const { isDesktop } = useDevice(); // Unused now
     const { accountList } = useApiBase();
     const { ui, run_panel, client } = useStore();
     const { accounts } = client;
@@ -159,7 +159,7 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
                     tabsLabels={tabs_labels}
                     modalContentStyle={{
                         content: {
-                            top: isDesktop ? '30%' : '50%',
+                            top: '30%',
                             borderRadius: '10px',
                         },
                     }}
