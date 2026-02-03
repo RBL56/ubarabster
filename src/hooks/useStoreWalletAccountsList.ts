@@ -74,16 +74,7 @@ const useStoreWalletAccountsList = () => {
 
         return (
             Object.keys(accounts)
-                ?.filter(id => {
-                    const acc = accounts[id];
-                    if (acc.account_category === 'wallet') return true;
-                    if (acc.account_category === 'trading') {
-                        // Include trading accounts that are NOT linked to a wallet in this list
-                        const hasLinkedWallet = acc.linked_to?.some(link => link.platform === 'wallet');
-                        return !hasLinkedWallet;
-                    }
-                    return false;
-                })
+                ?.filter(id => accounts[id].account_category === 'trading')
                 ?.map(id => {
                     const account = accounts?.[id];
 

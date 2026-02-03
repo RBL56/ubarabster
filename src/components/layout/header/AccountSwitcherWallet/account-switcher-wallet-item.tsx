@@ -91,7 +91,7 @@ export const AccountSwitcherWalletItem = observer(
                     </Text>
                     <Text size='xxxs' weight='bold'>
                         {is_virtual ? (
-                            <Localize i18n_default_text='Demo Wallet' />
+                            <Localize i18n_default_text='Demo Account' />
                         ) : (
                             <Localize
                                 i18n_default_text='{{currency}} {{account_type}}'
