@@ -231,6 +231,18 @@ const CoreStoreProvider: React.FC<{ children: React.ReactNode }> = observer(({ c
         }
     }, [isAuthorizing, isAuthorized, client]);
 
+    // Global safety timeout: Force initialization if it takes too long (e.g., auth stuck, CORS issues)
+    useEffect(() => {
+        const safetyTimeout = setTimeout(() => {
+            if (client && !client.is_client_initialized) {
+                console.warn('Initialization timed out, forcing load...');
+                client.setClientInitialized(true);
+            }
+        }, 5000);
+
+        return () => clearTimeout(safetyTimeout);
+    }, [client]);
+
     return <>{children}</>;
 });
 
