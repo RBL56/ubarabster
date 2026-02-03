@@ -66,23 +66,23 @@ const PWAInstallModal: React.FC = () => {
             return [
                 localize("Look for the install icon in your browser's address bar."),
                 localize('Click the install button or use the browser menu.'),
-                localize('Follow the prompts to install LOCO THE TRADER BOT.'),
+                localize('Follow the prompts to install LOCO THE TRADER.'),
             ];
         } else if (isIOS) {
             return [
-                localize('Open LOCO THE TRADER BOT in your browser.'),
+                localize('Open LOCO THE TRADER in your browser.'),
                 localize('Tap the share icon (for iOS Safari)'),
                 localize('Select "Add to Home screen".'),
             ];
         } else if (isAndroid) {
             return [
-                localize('Open LOCO THE TRADER BOT in your browser.'),
+                localize('Open LOCO THE TRADER in your browser.'),
                 localize('Tap the menu (on Chrome) or share icon (for iOS Safari)'),
                 localize('Select "Add to Home screen".'),
             ];
         } else {
             return [
-                localize('Open LOCO THE TRADER BOT in your browser.'),
+                localize('Open LOCO THE TRADER in your browser.'),
                 localize('Tap the menu (on Chrome) or share icon (for iOS Safari)'),
                 localize('Select "Add to Home screen".'),
             ];
@@ -94,11 +94,11 @@ const PWAInstallModal: React.FC = () => {
             <div className='pwa-install-modal__description'>
                 <Text size='xs' color='prominent'>
                     {isPWALaunch
-                        ? localize("Welcome to LOCO THE TRADER BOT! You're using the mobile app version.")
+                        ? localize("Welcome to LOCO THE TRADER! You're using the mobile app version.")
                         : isDesktop
-                            ? localize('Install LOCO THE TRADER BOT as a desktop app for faster access and a native experience!')
+                            ? localize('Install LOCO THE TRADER as a desktop app for faster access and a native experience!')
                             : localize(
-                                "We're excited to announce that LOCO THE TRADER BOT platform is now a Progressive Web App (PWA)!"
+                                "We're excited to announce that LOCO THE TRADER platform is now a Progressive Web App (PWA)!"
                             )}
                 </Text>
             </div>
@@ -164,7 +164,7 @@ const PWAInstallModal: React.FC = () => {
     const modalContent = isMobile ? (
         <MobileFullPageModal
             is_modal_open={isOpen}
-            page_header_text={localize('Install LOCO THE TRADER BOT')}
+            page_header_text={localize('Install LOCO THE TRADER')}
             pageHeaderReturnFn={handleClose}
             renderPageFooterChildren={() => renderFooterButton()}
             className='pwa-install-modal'
@@ -176,7 +176,7 @@ const PWAInstallModal: React.FC = () => {
         <Modal
             is_open={isOpen}
             toggleModal={handleClose}
-            title={isDesktop ? localize('Install LOCO THE TRADER BOT') : localize('Introducing our installable app')}
+            title={isDesktop ? localize('Install LOCO THE TRADER') : localize('Introducing our installable app')}
             has_close_icon={true}
             is_title_centered={false}
             className='pwa-install-modal'

@@ -19,12 +19,14 @@
 
     &--left {
         left: 0;
-        background: linear-gradient(-88.07deg, transparent 1.63%, var(--general-section-1) 50.02%);
+        // background: linear-gradient(-88.07deg, transparent 1.63%, var(--general-section-1) 50.02%);
+        display: none;
     }
 
     &--right {
         right: 0;
-        background: linear-gradient(88.07deg, transparent 1.63%, var(--general-section-1) 50.02%);
+        // background: linear-gradient(88.07deg, transparent 1.63%, var(--general-section-1) 50.02%);
+        display: none;
     }
 }
 

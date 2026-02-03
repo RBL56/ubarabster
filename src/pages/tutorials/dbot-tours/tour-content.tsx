@@ -483,12 +483,12 @@ export const BOT_BUILDER_MOBILE: TMobileTourConfig[] = [
 
 export const DBOT_ONBOARDING_MOBILE: TMobileTourConfig[] = [
     {
-        header: <Localize i18n_default_text='Welcome to LOCO THE TRADER BOT' />,
+        header: <Localize i18n_default_text='Welcome to LOCO THE TRADER' />,
         content: [
             <span key='get-started-on-deriv-bot-wrapper'>
                 <Localize
                     key='get-started-on-deriv-bot'
-                    i18n_default_text='Let’s take a quick tour to discover how LOCO THE TRADER BOT works. Press <0>Start</0> to begin.'
+                    i18n_default_text='Let’s take a quick tour to discover how LOCO THE TRADER works. Press <0>Start</0> to begin.'
                     components={[<strong key={0} />]}
                 />
             </span>,
@@ -611,7 +611,7 @@ export const getTourDialogAction = (is_mobile: boolean) => {
 };
 
 export const onboarding_tour_header = (
-    <Localize key='onboarding-tour-header' i18n_default_text='Welcome to LOCO THE TRADER BOT' />
+    <Localize key='onboarding-tour-header' i18n_default_text='Welcome to LOCO THE TRADER' />
 );
 
 export const getBotBuilderTourHeader = (is_mobile: boolean) => {
