@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { observer } from 'mobx-react-lite';
-import { generateOAuthURL, getAppId, standalone_routes } from '@/components/shared';
+import { getAppId, redirectToLogin, standalone_routes } from '@/components/shared';
 import Button from '@/components/shared_ui/button';
 import Modal from '@/components/shared_ui/modal';
 import Text from '@/components/shared_ui/text';
@@ -10,8 +10,6 @@ import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
 import useTMB from '@/hooks/useTMB';
 import { useFirebaseCountriesConfig } from '@/hooks/firebase/useFirebaseCountriesConfig';
-import { clearAuthData, handleOidcAuthFailure } from '@/utils/auth-utils';
-import { requestOidcAuthentication } from '@deriv-com/auth-client';
 import { Localize, useTranslations } from '@deriv-com/translations';
 import { Header, useDevice, Wrapper } from '@deriv-com/ui';
 import { AppLogo } from '../app-logo';
@@ -34,7 +32,7 @@ const AppHeader = observer(() => {
     const real_account = all_loginids?.find(id => !accounts?.[id]?.is_virtual);
 
     const currency = getCurrency?.();
-    const { localize } = useTranslations();
+    const { localize, currentLang } = useTranslations();
 
     const { onRenderTMBCheck, isTmbEnabled } = useTMB();
 
@@ -127,37 +125,8 @@ const AppHeader = observer(() => {
                         <>
                             <Button
                                 primary
-                                onClick={async () => {
-                                    clearAuthData(false);
-                                    const getQueryParams = new URLSearchParams(window.location.search);
-                                    const currency = getQueryParams.get('account') ?? '';
-                                    const query_param_currency =
-                                        currency || sessionStorage.getItem('query_param_currency') || 'USD';
-
-                                    try {
-                                        const tmbEnabled = await isTmbEnabled();
-                                        if (tmbEnabled) {
-                                            await onRenderTMBCheck(true);
-                                        } else {
-                                            try {
-                                                await requestOidcAuthentication({
-                                                    redirectCallbackUri: `${window.location.origin}/callback`,
-                                                    ...(query_param_currency
-                                                        ? {
-                                                            state: {
-                                                                account: query_param_currency,
-                                                            },
-                                                        }
-                                                        : {}),
-                                                });
-                                            } catch (err) {
-                                                handleOidcAuthFailure(err);
-                                                window.location.replace(generateOAuthURL());
-                                            }
-                                        }
-                                    } catch (error) {
-                                        console.error(error);
-                                    }
+                                onClick={() => {
+                                    redirectToLogin(false, currentLang);
                                 }}
                             >
                                 <Localize i18n_default_text='Log in' />
