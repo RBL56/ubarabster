@@ -135,8 +135,8 @@ const AccountSwitcher = observer(({ activeAccount }: TAccountSwitcher) => {
         return modifiedAccountList?.filter(account => account?.loginid?.includes('VRT')) ?? [];
     }, [modifiedAccountList]);
 
-    const switchAccount = async (loginId: number) => {
-        await client.switchAccount(loginId.toString());
+    const switchAccount = async (loginId: string) => {
+        await client.switchAccount(loginId);
     };
 
     return (

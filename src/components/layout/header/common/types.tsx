@@ -7,12 +7,12 @@ export type TModifiedAccount = ReturnType<typeof useApiBase>['accountList'][numb
     icon: React.ReactNode;
     isVirtual: boolean;
     isActive: boolean;
-    loginid: number;
+    loginid: string;
     currency: string;
 };
 export type TAccountSwitcherProps = {
     isVirtual?: boolean;
-    switchAccount: (loginId: number) => void;
+    switchAccount: (loginId: string) => void;
     modifiedCRAccountList?: TModifiedAccount[];
     modifiedMFAccountList?: TModifiedAccount[];
     modifiedVRTCRAccountList?: TModifiedAccount[];
@@ -29,7 +29,7 @@ export type TDemoAccounts = {
         demo: string;
     };
     modifiedVRTCRAccountList?: TModifiedAccount[];
-    switchAccount: (loginId: number) => void;
+    switchAccount: (loginId: string) => void;
     isVirtual: boolean;
     activeLoginId?: string;
     oAuthLogout: () => void;
@@ -48,7 +48,7 @@ export type TNoNonEuAccounts = {
 export type TRealAccounts = TNoNonEuAccounts & {
     modifiedCRAccountList: TModifiedAccount[];
     modifiedMFAccountList: TModifiedAccount[];
-    switchAccount: (loginId: number) => void;
+    switchAccount: (loginId: string) => void;
     oAuthLogout: () => void;
     loginid?: string;
     is_logging_out: boolean;
@@ -57,7 +57,7 @@ export type TRealAccounts = TNoNonEuAccounts & {
 };
 export type TEuAccounts = TNoNonEuAccounts & {
     modifiedMFAccountList: TModifiedAccount[];
-    switchAccount: (loginId: number) => void;
+    switchAccount: (loginId: string) => void;
     isVirtual?: boolean;
     is_low_risk_country?: boolean;
 };
@@ -66,7 +66,7 @@ export type TNonEUAccounts = TNoNonEuAccounts & {
     isVirtual?: boolean;
     modifiedCRAccountList: TModifiedAccount[];
     modifiedMFAccountList?: TModifiedAccount[];
-    switchAccount: (loginId: number) => void;
+    switchAccount: (loginId: string) => void;
     residence?: string;
 };
 

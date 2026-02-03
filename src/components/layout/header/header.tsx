@@ -9,6 +9,7 @@ import useActiveAccount from '@/hooks/api/account/useActiveAccount';
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
 import useTMB from '@/hooks/useTMB';
+import { useFirebaseCountriesConfig } from '@/hooks/firebase/useFirebaseCountriesConfig';
 import { clearAuthData, handleOidcAuthFailure } from '@/utils/auth-utils';
 import { requestOidcAuthentication } from '@deriv-com/auth-client';
 import { Localize, useTranslations } from '@deriv-com/translations';
@@ -23,10 +24,14 @@ const AppHeader = observer(() => {
     const { isDesktop } = useDevice();
     const { activeLoginid } = useApiBase();
     const { client } = useStore() ?? {};
+    const { hubEnabledCountryList } = useFirebaseCountriesConfig();
 
     const { data: activeAccount } = useActiveAccount({ allBalanceData: client?.all_accounts_balance });
-    const { accounts, getCurrency, is_virtual } = client ?? {};
+    const { accounts, getCurrency, is_virtual, all_loginids, switchAccount } = client ?? {};
     const has_wallet = Object.keys(accounts ?? {}).some(id => accounts?.[id].account_category === 'wallet');
+
+    const virtual_account = all_loginids?.find(id => accounts?.[id]?.is_virtual);
+    const real_account = all_loginids?.find(id => !accounts?.[id]?.is_virtual);
 
     const currency = getCurrency?.();
     const { localize } = useTranslations();
@@ -176,6 +181,27 @@ const AppHeader = observer(() => {
                                     <Localize i18n_default_text='Log out' />
                                 </Button>
                             </>
+                        )}
+                        {is_virtual ? (
+                            real_account && (
+                                <Button
+                                    secondary
+                                    onClick={() => switchAccount?.(real_account)}
+                                    className='quick-switch-button'
+                                >
+                                    <Localize i18n_default_text='Switch to Real' />
+                                </Button>
+                            )
+                        ) : (
+                            virtual_account && (
+                                <Button
+                                    secondary
+                                    onClick={() => switchAccount?.(virtual_account)}
+                                    className='quick-switch-button'
+                                >
+                                    <Localize i18n_default_text='Switch to Demo' />
+                                </Button>
+                            )
                         )}
                         <AccountSwitcher activeAccount={activeAccount} />
                     </>
