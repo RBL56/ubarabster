@@ -9,11 +9,11 @@ type TMenuContentProps = {
     onOpenSubmenu?: (submenu: string) => void;
 };
 
-const MenuContent = observer(({ onOpenSubmenu, onOpenApiModal }: TMenuContentProps & { onOpenApiModal?: () => void }) => {
+const MenuContent = observer(({ onOpenSubmenu }: TMenuContentProps) => {
     const { isDesktop } = useDevice();
     const { client } = useStore();
     const textSize = isDesktop ? 'sm' : 'md';
-    const { config } = useMobileMenuConfig(client, onOpenApiModal);
+    const { config } = useMobileMenuConfig(client);
 
     return (
         <div className='mobile-menu__content'>

@@ -42,7 +42,7 @@ type TMenuConfig = {
     isActive?: boolean;
 }[];
 
-const useMobileMenuConfig = (client?: RootStore['client'], onOpenApiModal?: () => void) => {
+const useMobileMenuConfig = (client?: RootStore['client']) => {
     const { localize } = useTranslations();
     const { is_dark_mode_on, toggleTheme } = useThemeSwitcher();
 
@@ -102,22 +102,12 @@ const useMobileMenuConfig = (client?: RootStore['client'], onOpenApiModal?: () =
                             window.open(URLConstants.signup);
                         },
                     },
-                    {
-                        as: 'button',
-                        label: localize('API Token Login'),
-                        LeftComponent: LegacyHomeOldIcon,
-                        onClick: () => {
-                            if (onOpenApiModal) {
-                                onOpenApiModal();
-                            }
-                        },
-                    },
                 ]);
             }
 
             return config;
         },
-        [is_dark_mode_on, toggleTheme, is_logged_in, client, localize, onOpenApiModal]
+        [is_dark_mode_on, toggleTheme, is_logged_in, client, localize]
     );
 
     return {

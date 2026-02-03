@@ -37,94 +37,10 @@ const AppHeader = observer(() => {
     const { localize } = useTranslations();
 
     const { onRenderTMBCheck, isTmbEnabled } = useTMB();
-    const [apiToken, setApiToken] = useState('');
-
-    const [isApiModalOpen, setIsApiModalOpen] = useState(false);
 
 
-    const handleApiTokenLogin = async () => {
-        const token = apiToken.trim();
-        if (!token) return;
-        console.log('Starting API Token Login...');
-        try {
-            // Use dynamic app_id from config
-            const app_id = getAppId();
-            const server_url = 'ws.derivws.com';
-            const socket_url = `wss://${server_url}/websockets/v3?app_id=${app_id}&l=EN&brand=deriv`;
 
-            console.log(`Connecting to WebSocket: ${socket_url}`);
-            const ws = new WebSocket(socket_url);
 
-            ws.onopen = () => {
-                console.log('WebSocket Connected. Sending authorize...');
-                ws.send(JSON.stringify({ authorize: token }));
-            };
-
-            ws.onmessage = msg => {
-                console.log('WebSocket Message Received:', msg.data);
-                const response = JSON.parse(msg.data);
-                if (response.error) {
-                    console.error('Login Failed Error:', response.error);
-                    alert(`Login Failed: ${response.error.message} (Code: ${response.error.code})`);
-                    ws.close();
-                } else if (response.msg_type === 'authorize') {
-                    console.log('Authorization Success:', response);
-                    const { authorize } = response;
-                    const { loginid, landing_company_name, email, balance, country } = authorize;
-
-                    // Set standard storage items expected by the app
-                    localStorage.setItem('config.app_id', app_id.toString());
-                    localStorage.setItem('active_loginid', loginid);
-                    localStorage.setItem('authToken', token);
-                    localStorage.setItem('is_manual_auth', 'true');
-                    localStorage.setItem(
-                        'accountsList',
-                        JSON.stringify({
-                            [loginid]: token,
-                        })
-                    );
-
-                    // Populate clientAccounts with comprehensive data
-                    const clientAccount = {
-                        token: token,
-                        currency: authorize.currency,
-                        landing_company_name: landing_company_name,
-                        is_virtual: !!authorize.is_virtual, // Ensure boolean
-                        loginid: loginid,
-                        email: email,
-                        balance: balance,
-                        residence: country,
-                    };
-
-                    localStorage.setItem(
-                        'clientAccounts',
-                        JSON.stringify({
-                            [loginid]: clientAccount,
-                        })
-                    );
-
-                    // Dispatch storage event to notify other components/tabs
-                    window.dispatchEvent(new Event('storage'));
-
-                    console.log('Session stored. Reloading...');
-                    ws.close();
-
-                    // Reload to initialize stores with new session
-                    window.location.reload();
-                }
-            };
-            ws.onclose = e => {
-                console.log('WebSocket Closed:', e);
-            };
-            ws.onerror = e => {
-                console.error('WebSocket Connection Error:', e);
-                alert('WebSocket Connection Error. Please check your internet connection.');
-            };
-        } catch (error) {
-            console.error('API Token Login Catch Error:', error);
-            alert(`An error occurred: ${error}`);
-        }
-    };
 
     // No need for additional state management here since we're handling it in the layout component
 
@@ -137,7 +53,7 @@ const AppHeader = observer(() => {
             })}
         >
             <Wrapper variant='left'>
-                {!isDesktop && <MobileMenu onOpenApiModal={() => setIsApiModalOpen(true)} />}
+                {!isDesktop && <MobileMenu />}
                 <AppLogo />
             </Wrapper>
             <Wrapper variant='right'>
@@ -246,9 +162,7 @@ const AppHeader = observer(() => {
                             >
                                 <Localize i18n_default_text='Log in' />
                             </Button>
-                            <Button secondary onClick={() => setIsApiModalOpen(true)} className='api-token-button'>
-                                <Localize i18n_default_text='API Token' />
-                            </Button>
+
                             <Button
                                 primary
                                 onClick={() => {
@@ -262,86 +176,7 @@ const AppHeader = observer(() => {
                 </div>
             </Wrapper>
 
-            {isApiModalOpen && (
-                <Modal
-                    is_open={isApiModalOpen}
-                    toggleModal={() => setIsApiModalOpen(false)}
-                    has_close_icon
-                    title='Login with API Token'
-                    width='440px'
-                >
-                    <Modal.Body>
-                        <div
-                            className='api-token-modal-content'
-                            style={{ display: 'flex', flexDirection: 'column', gap: '1.6rem' }}
-                        >
-                            <Text size='xs' lineHeight='m'>
-                                Enter your Deriv API token to login. You can create an API token from your Deriv account
-                                settings.
-                            </Text>
-                            <Button
-                                primary
-                                onClick={async () => {
-                                    clearAuthData(false);
-                                    window.location.replace(generateOAuthURL());
-                                }}
-                                style={{ width: '100%' }}
-                            >
-                                <Localize i18n_default_text='Log in via Deriv (Fast & Real-time)' />
-                            </Button>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.8rem 0' }}>
-                                <div style={{ flex: 1, height: '1px', background: 'var(--border-normal)' }}></div>
-                                <Text size='xs' color='less-prominent'>
-                                    or use API Token
-                                </Text>
-                                <div style={{ flex: 1, height: '1px', background: 'var(--border-normal)' }}></div>
-                            </div>
-                            <input
-                                type='text'
-                                placeholder='API Token'
-                                value={apiToken}
-                                onChange={e => setApiToken(e.target.value)}
-                                style={{
-                                    padding: '1rem',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--border-normal)',
-                                    width: '100%',
-                                    fontSize: '1.4rem',
-                                }}
-                            />
-                            <a
-                                href='https://app.deriv.com/account/api-token'
-                                target='_blank'
-                                rel='noopener noreferrer'
-                                style={{
-                                    color: 'var(--text-loss-danger)',
-                                    fontSize: '1.2rem',
-                                    textDecoration: 'none',
-                                }}
-                            >
-                                Get your API token from Deriv API Token Settings
-                            </a>
-                        </div>
-                    </Modal.Body>
-                    <Modal.Footer>
-                        <Button
-                            has_effect
-                            text={localize('Cancel')}
-                            onClick={() => setIsApiModalOpen(false)}
-                            secondary
-                            large
-                        />
-                        <Button
-                            has_effect
-                            text={localize('Login')}
-                            onClick={handleApiTokenLogin}
-                            primary
-                            large
-                            is_disabled={!apiToken}
-                        />
-                    </Modal.Footer>
-                </Modal>
-            )}
+
 
 
 
