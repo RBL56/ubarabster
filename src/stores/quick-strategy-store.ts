@@ -1,5 +1,6 @@
 import { action, makeObservable, observable, reaction } from 'mobx';
 import { ApiHelpers, config as qs_config, load } from '@/external/bot-skeleton';
+import { observer as globalObserver } from '@/external/bot-skeleton/utils/observer';
 import { save_types } from '@/external/bot-skeleton/constants/save-type';
 import { addDynamicBlockToDOM } from '@/utils/xml-dom-quick-strategy';
 import { STRATEGIES } from '../pages/bot-builder/quick-strategy/config';
@@ -257,7 +258,9 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
         const workspace = window.Blockly?.derivWorkspace;
         if (workspace) {
             const blocks = workspace.getAllBlocks(false);
-            const tradeOptionsBlock = blocks.find(b => b.type === 'trade_definition_tradeoptions');
+            const tradeOptionsBlock = blocks.find(b =>
+                ['trade_definition_tradeoptions', 'trade_definition_tradeoptions_payout'].includes(b.type)
+            );
             if (tradeOptionsBlock) {
                 const turboModeField = tradeOptionsBlock.getField('TURBO_MODE');
                 if (turboModeField && turboModeField.getValue() !== (is_turbo_mode ? 'TRUE' : 'FALSE')) {
@@ -265,5 +268,8 @@ export default class QuickStrategyStore implements IQuickStrategyStore {
                 }
             }
         }
+
+        // Notify global observer for runtime reactivity
+        globalObserver.setState({ is_turbo_mode });
     };
 }

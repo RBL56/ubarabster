@@ -144,7 +144,7 @@ class DBot {
                         }
 
                         // Sync Turbo Mode global state from workspace block
-                        if (block?.type === 'trade_definition_tradeoptions') {
+                        if (['trade_definition_tradeoptions', 'trade_definition_tradeoptions_payout'].includes(block?.type)) {
                             const turboModeField = block.getField('TURBO_MODE');
                             if (turboModeField) {
                                 const isTurbo = turboModeField.getValue() === 'TRUE';
@@ -152,6 +152,7 @@ class DBot {
                                 if (quick_strategy && quick_strategy.is_turbo_mode !== isTurbo) {
                                     quick_strategy.setTurboMode(isTurbo, true); // true to skip sync back to block
                                 }
+                                globalObserver.setState({ is_turbo_mode: isTurbo });
                             }
                         }
                     }
@@ -195,7 +196,9 @@ class DBot {
 
                 // Initial sync of Turbo Mode from loaded workspace
                 const blocks = this.workspace.getAllBlocks(false);
-                const tradeOptionsBlock = blocks.find(b => b.type === 'trade_definition_tradeoptions');
+                const tradeOptionsBlock = blocks.find(b =>
+                    ['trade_definition_tradeoptions', 'trade_definition_tradeoptions_payout'].includes(b.type)
+                );
                 if (tradeOptionsBlock) {
                     const turboModeField = tradeOptionsBlock.getField('TURBO_MODE');
                     if (turboModeField) {
@@ -204,6 +207,7 @@ class DBot {
                         if (quick_strategy && quick_strategy.is_turbo_mode !== isTurbo) {
                             quick_strategy.setTurboMode(isTurbo, true);
                         }
+                        globalObserver.setState({ is_turbo_mode: isTurbo });
                     }
                 }
 

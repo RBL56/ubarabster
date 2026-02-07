@@ -17,25 +17,29 @@ import Sell from './Sell';
 import Ticks from './Ticks';
 import Total from './Total';
 
-const watchBefore = (store, turboMode, engine) =>
-    watchScope({
+const watchBefore = (store, turboMode, engine) => {
+    const isTurboMode = globalObserver.getState('is_turbo_mode') ?? turboMode;
+    return watchScope({
         store,
         stopScope: constants.DURING_PURCHASE,
         passScope: constants.BEFORE_PURCHASE,
         passFlag: 'proposalsReady',
-        turboMode,
+        turboMode: isTurboMode,
         engine,
     });
+};
 
-const watchDuring = (store, turboMode, engine) =>
-    watchScope({
+const watchDuring = (store, turboMode, engine) => {
+    const isTurboMode = globalObserver.getState('is_turbo_mode') ?? turboMode;
+    return watchScope({
         store,
         stopScope: constants.STOP,
         passScope: constants.DURING_PURCHASE,
         passFlag: 'openContract',
-        turboMode,
+        turboMode: isTurboMode,
         engine,
     });
+};
 
 const watchScope = ({ store, stopScope, passScope, passFlag, turboMode, engine }) => {
     // Immediate check: if we are ready and haven't handled this state/tick yet, proceed.
