@@ -4,10 +4,18 @@ import { modifyContextMenu } from '../../../utils';
 window.Blockly.Blocks.last_digits_condition = {
     init() {
         this.jsonInit(this.definition());
+
+        this.setOnChange(event => {
+            if (event.name === 'CONDITION') {
+                const condition = this.getFieldValue('CONDITION');
+                const isAllCondition = ['EVEN', 'ODD', 'SAME'].includes(condition);
+                this.updateShape(!isAllCondition);
+            }
+        });
     },
     definition() {
         return {
-            message0: localize('Last %1 digits are %2 digit %3'),
+            message0: localize('Last %1 digits are %2 %3'),
             args0: [
                 {
                     type: 'input_value',
@@ -28,9 +36,8 @@ window.Blockly.Blocks.last_digits_condition = {
                     ],
                 },
                 {
-                    type: 'input_value',
-                    name: 'DIGIT',
-                    check: 'Number',
+                    type: 'input_dummy',
+                    name: 'DIGIT_LABEL_DUMMY',
                 },
             ],
             output: 'Boolean',
@@ -41,6 +48,41 @@ window.Blockly.Blocks.last_digits_condition = {
             tooltip: localize('Checks if the last N digits meet the specified condition'),
             category: window.Blockly.Categories.Analysis_Logics,
         };
+    },
+    domToMutation(xmlElement) {
+        const hasDigitInput = xmlElement.getAttribute('digit_input') === 'true';
+        this.updateShape(hasDigitInput);
+    },
+    mutationToDom() {
+        const container = document.createElement('mutation');
+        const condition = this.getFieldValue('CONDITION');
+        const hasDigitInput = !['EVEN', 'ODD', 'SAME'].includes(condition);
+        container.setAttribute('digit_input', hasDigitInput);
+        return container;
+    },
+    updateShape(hasDigitInput) {
+        const inputExists = this.getInput('DIGIT');
+        const dummyInput = this.getInput('DIGIT_LABEL_DUMMY');
+
+        if (hasDigitInput) {
+            if (!inputExists) {
+                if (dummyInput) {
+                    dummyInput.appendField(new window.Blockly.FieldLabel(localize('digit')), 'DIGIT_LABEL');
+                }
+                this.appendValueInput('DIGIT').setCheck('Number');
+                this.initSvg();
+                this.renderEfficiently();
+            }
+        } else {
+            if (inputExists) {
+                if (dummyInput && dummyInput.fieldGroup_) {
+                    dummyInput.removeField('DIGIT_LABEL');
+                }
+                this.removeInput('DIGIT');
+                this.initSvg();
+                this.renderEfficiently();
+            }
+        }
     },
     meta() {
         return {
