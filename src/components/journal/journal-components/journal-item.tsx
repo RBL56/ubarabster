@@ -4,6 +4,7 @@ import { isDbotRTL } from '@/external/bot-skeleton/utils/workspace';
 import { TJournalItemExtra, TJournalItemProps } from '../journal.types';
 import DateItem from './date-item';
 import FormatMessage from './format-message';
+import AnalysisMessage from './analysis-message';
 
 const getJournalItemContent = (
     message: string | ((value: () => void) => string),
@@ -17,6 +18,14 @@ const getJournalItemContent = (
             return <FormatMessage logType={message as string} extra={extra} className={className} />;
         }
         case MessageTypes.NOTIFY: {
+            if (typeof message === 'string' && message.startsWith('__ANALYSIS__')) {
+                try {
+                    const data = JSON.parse(message.substring(12));
+                    return <AnalysisMessage data={data} />;
+                } catch (e) {
+                    return <div className={classnames('journal__text', className)}>{message}</div>;
+                }
+            }
             if (typeof message === 'function') {
                 return <div className={classnames('journal__text', className)}>{message(measure)}</div>;
             }

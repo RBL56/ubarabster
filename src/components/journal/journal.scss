@@ -18,7 +18,8 @@
 
 .journal {
     .ReactVirtualized__Grid__innerScrollContainer {
-        & > :first-child,
+
+        &> :first-child,
         :before,
         :after {
             box-sizing: border-box;
@@ -75,7 +76,7 @@
         }
 
         &-content {
-            > * {
+            >* {
                 width: 100%;
             }
         }
@@ -83,7 +84,7 @@
 
     &__data-list {
         .ReactVirtualized__Grid__innerScrollContainer {
-            > div:nth-child(even) {
+            >div:nth-child(even) {
                 background: var(--general-section-2);
             }
         }
@@ -149,6 +150,37 @@
 
         &--bold {
             font-weight: bold;
+        }
+    }
+
+    .analysis-message {
+        background: var(--general-section-1);
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 4px;
+        font-size: var(--text-size-xxs);
+        color: var(--text-general);
+
+        &__header {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        &__result {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: bold;
+
+            &--true {
+                color: var(--status-success);
+            }
+
+            &--false {
+                color: var(--status-danger);
+            }
         }
     }
 

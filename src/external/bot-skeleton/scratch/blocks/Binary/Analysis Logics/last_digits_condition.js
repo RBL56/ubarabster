@@ -83,7 +83,16 @@ window.Blockly.JavaScript.javascriptGenerator.forBlock.last_digits_condition = b
 
     const code = `(function() {
         var digits = Bot.getLastDigitList().slice(-${digitsCount});
-        return digits.length > 0 && digits.every(function(d) { return ${conditionCode}; });
+        var result = digits.length > 0 && digits.every(function(d) { return ${conditionCode}; });
+        var analysisData = {
+            type: 'last_digit_analysis',
+            condition: '${condition}',
+            digits: digits,
+            digit: ${digit},
+            result: result
+        };
+        Bot.notify('success', '__ANALYSIS__' + JSON.stringify(analysisData));
+        return result;
     })()`;
 
     return [code, window.Blockly.JavaScript.javascriptGenerator.ORDER_ATOMIC];
