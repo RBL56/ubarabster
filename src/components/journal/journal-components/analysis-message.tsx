@@ -1,7 +1,7 @@
 import React from 'react';
 import classnames from 'classnames';
 import { Localize } from '@deriv-com/translations';
-import { LabelPairedCircleCheckMdFillIcon, LabelPairedCircleCrossMdFillIcon } from '@deriv/quill-icons/LabelPaired';
+import { LabelPairedCircleCheckMdFillIcon, LabelPairedCircleXmarkMdFillIcon } from '@deriv/quill-icons/LabelPaired';
 
 type TAnalysisData = {
     type: string;
@@ -48,7 +48,7 @@ const AnalysisMessage = ({ data }: { data: TAnalysisData }) => {
                         </>
                     ) : (
                         <>
-                            <LabelPairedCircleCrossMdFillIcon fill='var(--status-danger)' iconSize='sm' />
+                            <LabelPairedCircleXmarkMdFillIcon fill='var(--status-danger)' iconSize='sm' />
                             <Localize i18n_default_text='FALSE' />
                         </>
                     )}
