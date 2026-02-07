@@ -84,14 +84,17 @@ window.Blockly.JavaScript.javascriptGenerator.forBlock.last_digits_condition = b
     const code = `(function() {
         var digits = Bot.getLastDigitList().slice(-${digitsCount});
         var result = digits.length > 0 && digits.every(function(d) { return ${conditionCode}; });
-        var analysisData = {
-            type: 'last_digit_analysis',
-            condition: '${condition}',
-            digits: digits,
-            digit: ${digit},
-            result: result
-        };
-        Bot.notify('success', '__ANALYSIS__' + JSON.stringify(analysisData));
+        Bot.notify({
+            className: 'journal__text--warn',
+            message: '__ANALYSIS__' + JSON.stringify({
+                type: 'analysis',
+                condition: '${condition}',
+                digit: ${digit},
+                digits: digits,
+                result: result
+            }),
+            sound: 'silent'
+        });
         return result;
     })()`;
 
