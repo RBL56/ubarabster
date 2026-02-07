@@ -37,28 +37,30 @@ export const AccountSwitcherWalletItem = observer(
             client,
         } = useStore();
 
-        const { loginid: active_loginid, is_eu } = client;
+        const { loginid: active_loginid, is_eu, is_switching } = client;
 
         const theme = is_dark_mode_on ? 'dark' : 'light';
         const app_icon = is_dark_mode_on ? 'IcWalletOptionsDark' : 'IcWalletOptionsLight';
         const is_dtrade_active = dtrade_loginid === active_loginid;
+        const is_switching_this_account = is_switching && is_dtrade_active;
 
         const handleSwitchAccount = async (loginId: string | number) => {
             // Use the centralized switchAccount from ClientStore to ensure consistency
-            if (client) {
+            if (client && !is_switching) {
                 await client.switchAccount(loginId.toString());
                 closeAccountsDialog();
             }
         };
 
         return (
-            <div
+            <button
                 className={classNames('acc-switcher-wallet-item__container', {
                     'acc-switcher-wallet-item__container--active': is_dtrade_active,
+                    'acc-switcher-wallet-item__container--switching': is_switching_this_account,
                 })}
                 data-testid='account-switcher-wallet-item'
                 onClick={() => handleSwitchAccount(dtrade_loginid)}
-                role='button'
+                disabled={is_switching}
             >
                 <div className='acc-switcher-wallet-item__icon-container'>
                     {is_wallet ? (
@@ -82,14 +84,14 @@ export const AccountSwitcherWalletItem = observer(
                     )}
                 </div>
                 <div className='acc-switcher-wallet-item__content'>
-                    <Text size='xxxs' color='less-prominent'>
+                    <Text size='xxxs' color='less-prominent' align='left'>
                         {is_eu ? (
                             <Localize i18n_default_text='Multipliers' />
                         ) : (
                             <Localize i18n_default_text='Options' />
                         )}
                     </Text>
-                    <Text size='xxxs' weight='bold'>
+                    <Text size='xxxs' weight='bold' align='left'>
                         {is_virtual ? (
                             <Localize i18n_default_text='Demo Account' />
                         ) : (
@@ -102,14 +104,18 @@ export const AccountSwitcherWalletItem = observer(
                             />
                         )}
                     </Text>
-                    <Text size='xs' weight='bold'>
-                        {`${formatMoney(currency ?? '', dtrade_balance || 0, true)} ${getCurrencyDisplayCode(
-                            currency
-                        )}`}
+                    <Text size='xs' weight='bold' align='left'>
+                        {is_switching_this_account ? (
+                            <Localize i18n_default_text='Switching...' />
+                        ) : (
+                            `${formatMoney(currency ?? '', dtrade_balance || 0, true)} ${getCurrencyDisplayCode(
+                                currency
+                            )}`
+                        )}
                     </Text>
                 </div>
                 {show_badge && <WalletBadge is_demo={Boolean(is_virtual)} label={landing_company_name} />}
-            </div>
+            </button>
         );
     }
 );

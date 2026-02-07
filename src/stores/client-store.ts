@@ -31,6 +31,7 @@ export default class ClientStore {
     is_landing_company_loaded: boolean | undefined;
     all_accounts_balance: Balance | null = null;
     is_logging_out = false;
+    is_switching = false;
     is_client_initialized = false;
 
     // TODO: fix with self exclusion
@@ -176,6 +177,7 @@ export default class ClientStore {
             upgradeable_landing_companies: observable,
             website_status: observable,
             is_logging_out: observable,
+            is_switching: observable,
             virtual_hook_settings: observable,
             setVirtualHookSettings: action,
             is_virtual_hook_modal_open: observable,
@@ -648,6 +650,10 @@ export default class ClientStore {
             console.error(`[ClientStore] No token found for loginId: ${loginId}`);
             return;
         }
+
+        runInAction(() => {
+            this.is_switching = true;
+        });
 
         console.log(`[ClientStore] Switching to account: ${loginId}`);
 

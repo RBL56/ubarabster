@@ -10,13 +10,27 @@
         border-radius: $BORDER_RADIUS;
         gap: 1.6rem;
         cursor: pointer;
+        background: transparent;
+        border: none;
+        width: 100%;
+        font-family: inherit;
 
         &--active {
             background-color: var(--general-active);
         }
 
-        &:hover:not(&--active) {
+        &--switching {
+            background-color: var(--general-active);
+            opacity: 0.8;
+        }
+
+        &:hover:not(&--active):not(:disabled) {
             background-color: var(--general-hover);
+        }
+
+        &:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
         }
     }
 
