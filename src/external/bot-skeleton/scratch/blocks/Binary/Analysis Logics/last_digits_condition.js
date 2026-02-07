@@ -18,10 +18,13 @@ window.Blockly.Blocks.last_digits_condition = {
                     type: 'field_dropdown',
                     name: 'CONDITION',
                     options: [
+                        [localize('all even'), 'EVEN'],
+                        [localize('all odd'), 'ODD'],
+                        [localize('all same'), 'SAME'],
                         [localize('less than'), 'LT'],
                         [localize('greater than'), 'GT'],
-                        [localize('equal to'), 'EQ'],
-                        [localize('not equal to'), 'NEQ'],
+                        [localize('less than or equal to'), 'LTE'],
+                        [localize('greater than or equal to'), 'GTE'],
                     ],
                 },
                 {
@@ -65,11 +68,26 @@ window.Blockly.JavaScript.javascriptGenerator.forBlock.last_digits_condition = b
 
     let conditionCode;
     switch (condition) {
+        case 'EVEN':
+            conditionCode = 'd % 2 === 0';
+            break;
+        case 'ODD':
+            conditionCode = 'd % 2 !== 0';
+            break;
+        case 'SAME':
+            conditionCode = 'd === digits[0]';
+            break;
         case 'LT':
             conditionCode = `d < ${digit}`;
             break;
         case 'GT':
             conditionCode = `d > ${digit}`;
+            break;
+        case 'LTE':
+            conditionCode = `d <= ${digit}`;
+            break;
+        case 'GTE':
+            conditionCode = `d >= ${digit}`;
             break;
         case 'EQ':
             conditionCode = `d === ${digit}`;
