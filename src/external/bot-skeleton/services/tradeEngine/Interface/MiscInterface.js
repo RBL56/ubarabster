@@ -1,6 +1,7 @@
 import { localize } from '@deriv-com/translations';
 import { observer as globalObserver } from '../../../utils/observer';
 import { notify } from '../utils/broadcast';
+import ApiHelpers from '../../api/api-helpers';
 
 const getMiscInterface = tradeEngine => {
     return {
@@ -26,6 +27,12 @@ const getMiscInterface = tradeEngine => {
         getTotalRuns: () => tradeEngine.getTotalRuns(),
         getBalance: type => tradeEngine.getBalance(type),
         getTotalProfit: toString => tradeEngine.getTotalProfit(toString, tradeEngine.tradeOptions.currency),
+        getSymbolDisplayName: (symbol = tradeEngine.symbol) => {
+            const { active_symbols } = ApiHelpers.instance;
+            const all_symbols = active_symbols.getAllSymbols();
+            const symbol_obj = all_symbols.find(s => s.symbol === symbol);
+            return symbol_obj ? symbol_obj.symbol_display : symbol;
+        },
     };
 };
 
